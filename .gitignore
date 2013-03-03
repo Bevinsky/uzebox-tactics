@@ -1,5 +1,6 @@
 # Object files
 *.o
+*.d
 
 # Libraries
 *.lib
@@ -15,3 +16,8 @@
 *.exe
 *.out
 *.app
+*.eep
+*.elf
+*.hex
+*.lss
+*.map

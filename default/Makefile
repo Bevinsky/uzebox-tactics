@@ -11,7 +11,7 @@ CC = avr-gcc
 INFO=../gameinfo.properties
 
 ## Kernel settings
-KERNEL_DIR = ../../kernel
+KERNEL_DIR = ../../kernel/kernel
 KERNEL_OPTIONS  = -DVIDEO_MODE=3 -DINTRO_LOGO=1 -DSOUND_CHANNEL_4_ENABLE=0 -DSCROLLING=1 -DSOUND_MIXER=1
 KERNEL_OPTIONS += -DMAX_SPRITES=14 -DRAM_TILES_COUNT=38 -DSCREEN_TILES_V=27 -DFIRST_RENDER_LINE=24 
 KERNEL_OPTIONS += -DVRAM_TILES_V=32
@@ -47,7 +47,7 @@ HEX_EEPROM_FLAGS += --change-section-lma .eeprom=0 --no-change-warnings
 
 
 ## Objects that must be built in order to link
-OBJECTS = uzeboxVideoEngineCore.o  uzeboxCore.o uzeboxSoundEngine.o uzeboxSoundEngineCore.o uzeboxVideoEngine.o $(GAME).o 
+OBJECTS = uzeboxVideoEngineCore.o  uzeboxCore.o uzeboxSoundEngine.o uzeboxSoundEngineCore.o uzeboxVideoEngine.o tacticsCore.o 
 
 ## Objects explicitly added by the user
 LINKONLYOBJECTS = 
@@ -77,7 +77,7 @@ uzeboxVideoEngine.o: $(KERNEL_DIR)/uzeboxVideoEngine.c
 	$(CC) $(INCLUDES) $(CFLAGS) -c  $<
 
 ## Compile game sources
-$(GAME).o: ../tacticsCore.c
+tacticsCore.o: ../tacticsCore.c
 	$(CC) $(INCLUDES) $(CFLAGS) -c  $<
 
 ##Link
