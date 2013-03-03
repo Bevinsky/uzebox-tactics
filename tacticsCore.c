@@ -27,7 +27,7 @@ void initialize();
 int main() {
 	initialize();
 
-	Print(0,0,PSTR("   "));
+	Print(0,0,PSTR("!!??ABCabc"));
 
 	while(1) {
 		WaitVsync(1);
@@ -39,7 +39,7 @@ int main() {
 void initialize() {
 	ClearVram();
 	SetTileTable(font_map);
-	SetFontTilesIndex(31);
+	SetFontTilesIndex(0);
 
 
 }
