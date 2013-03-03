@@ -27,8 +27,11 @@ void initialize();
 int main() {
 	initialize();
 
-	Print(0,0,PSTR("Hello world!"));
+	Print(0,0,PSTR("ABCDEFGHIJKLMNOPQRSTUV"));
 
+	while(1) {
+		WaitVsync(1);
+	}
 	return 0;
 }
 
