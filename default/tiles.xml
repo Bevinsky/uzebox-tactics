@@ -1,0 +1,18 @@
+<?xml vesrion = "1.0" ?>
+<gfx-xform version="1">
+	<input file="..\res\tiles.png" type="png" tile-width="8" tile-height="8" />
+	<output file="..\res\tiles.inc">
+		<tiles var-name="terrainTiles"/>
+		<maps pointers-size="8">
+			<map var-name="map_plain" left="2" top="0" width="2" height="2"/>
+			<map var-name="map_mountain" left="4" top="0" width="2" height="2"/>
+			<map var-name="map_forest" left="6" top="0" width="2" height="2"/>
+			<map var-name="map_city_neu" left="0" top="2" width="2" height="2"/>
+			<map var-name="map_city_red" left="2" top="2" width="2" height="2"/>
+			<map var-name="map_city_blu" left="6" top="2" width="2" height="2"/>
+			<map var-name="map_base_neu" left="0" top="4" width="2" height="2"/>
+			<map var-name="map_base_red" left="2" top="4" width="2" height="2"/>
+			<map var-name="map_base_blu" left="4" top="4" width="2" height="2"/>
+		</maps>
+	</output>
+</gfx-xform>
