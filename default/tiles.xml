@@ -9,7 +9,7 @@
 			<map var-name="map_forest" left="6" top="0" width="2" height="2"/>
 			<map var-name="map_city_neu" left="0" top="2" width="2" height="2"/>
 			<map var-name="map_city_red" left="2" top="2" width="2" height="2"/>
-			<map var-name="map_city_blu" left="6" top="2" width="2" height="2"/>
+			<map var-name="map_city_blu" left="4" top="2" width="2" height="2"/>
 			<map var-name="map_base_neu" left="0" top="4" width="2" height="2"/>
 			<map var-name="map_base_red" left="2" top="4" width="2" height="2"/>
 			<map var-name="map_base_blu" left="4" top="4" width="2" height="2"/>
