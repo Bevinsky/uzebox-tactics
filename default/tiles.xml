@@ -13,6 +13,7 @@
 			<map var-name="map_base_neu" left="0" top="4" width="2" height="2"/>
 			<map var-name="map_base_red" left="2" top="4" width="2" height="2"/>
 			<map var-name="map_base_blu" left="4" top="4" width="2" height="2"/>
+			<map var-name="hp_bar_base" left="8" top="0" width="2" height="1" />
 		</maps>
 	</output>
 </gfx-xform>

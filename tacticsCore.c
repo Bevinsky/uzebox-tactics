@@ -40,6 +40,8 @@ struct GridBufferSquare screenBuffer[17][14]; // should this be pointers to leve
 struct Unit unitList[40]; //is this enough?
 
 /* defines */
+#define LEVEL_HEIGHT 11
+
 #define PL1	0x80
 #define PL2	0x40
 #define NEU	0x00
@@ -58,6 +60,7 @@ struct Unit unitList[40]; //is this enough?
 // param1, param2, param3; return
 void initialize();
 void loadLevel(const char*); // level
+void drawHPBar(char, char, char); // x, y, value
 char addUnit(char, char, char, char); // x, y, player, type; unitIndex
 
 const char testlevel[] PROGMEM =
@@ -83,7 +86,7 @@ const char testlevel[] PROGMEM =
 void main() {
 	initialize();
 
-	for(char y = 0; y < 12; y++)
+	for(char y = 0; y < LEVEL_HEIGHT; y++)
 	{
 		for(char x = 0; x < 14; x++)
 		{
@@ -136,17 +139,18 @@ void main() {
 	}
 
 	Print(0,VRAM_TILES_V-4,PSTR("Infantry"));
-	Print(0,VRAM_TILES_V-3,PSTR("HP a shit load"));
+	//Print(0,VRAM_TILES_V-3,PSTR("HP a shit load"));
 
 	while(1) {
 		char dir = 1;
-		WaitVsync(10);
+		WaitVsync(3);
 		Screen.scrollX += dir; //this doesn't work the way i thought it would... test it
 		PrintByte(2, VRAM_TILES_V-1, Screen.scrollX, 0);
 		if(Screen.scrollX > 20)
 			dir = -1;
 		else if(Screen.scrollX < 0)
 			dir = 1;
+		drawHPBar(0, VRAM_TILES_V-3, Screen.scrollX%56);
 	}
 	return;
 }
@@ -166,7 +170,7 @@ void loadLevel(const char* level) {
 	int x, y; // i know i said this wasn't needed but there will be overflow on the array access otherwise
 
 	levelWidth = pgm_read_byte(&level[0]);
-	levelHeight = 14;
+	levelHeight = LEVEL_HEIGHT;
 
 	/*
 	if(levelWidth >= 40) {
@@ -199,4 +203,45 @@ void loadLevel(const char* level) {
 			levelBuffer[x][y].unit = unit;
 		}
 	}
+}
+
+void drawHPBar(char x, char y, char val) {
+	if(val > 56)
+		val = 56;
+	DrawMap2(x, y, hp_bar_base);
+	x += 2;
+	Fill(x, y, 7, 1, 0);
+	while(val >= 8) {
+		SetTile(x, y, 9);
+		val -= 8;
+		x++;
+	}
+	//i want a fancy indexing thing here but fucking tiles man
+	switch(val) {
+	case 7:
+		SetTile(x,y,10);
+		break;
+	case 6:
+		SetTile(x,y,11);
+		break;
+	case 5:
+		SetTile(x,y,12);
+		break;
+	case 4:
+		SetTile(x,y,13);
+		break;
+	case 3:
+		SetTile(x,y,14);
+		break;
+	case 2:
+		SetTile(x,y,21);
+		break;
+	case 1:
+		SetTile(x,y,21);
+		break;
+	case 0:
+	default:
+		SetTile(x,y,0);
+	}
+
 }
