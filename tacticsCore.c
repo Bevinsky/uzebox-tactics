@@ -52,15 +52,14 @@ const char testlevel[] PROGMEM =
 
 
 /* main function */
-int main() {
+void main() {
 	initialize();
 
-	int counter = 1;
-	for(int y = 0; y < 12; y++)
+	for(char y = 0; y < 12; y++)
 	{
-		for(int x = 0; x < 15; x++)
+		for(char x = 0; x < 15; x++)
 		{
-			switch(testlevel[counter]&TERRAIN_MASK)
+			switch(testlevel[y*testlevel[0]+x]&TERRAIN_MASK)
 			{
 				case PL:
 					DrawMap2(2*x, 2*y, map_plain);
@@ -72,7 +71,7 @@ int main() {
 					DrawMap2(2*x, 2*y, map_forest);
 					break;
 				case CT:
-					switch(testlevel[counter]&OWNER_MASK)
+					switch(testlevel[y*testlevel[0]+x]&OWNER_MASK)
 					{
 						case PL1:
 							DrawMap2(2*x, 2*y, map_city_red);
@@ -87,7 +86,7 @@ int main() {
 					}
 					break;
 				case BS:
-					switch(testlevel[counter]&OWNER_MASK)
+					switch(testlevel[y*testlevel[0]+x]&OWNER_MASK)
 					{
 						case PL1:
 							DrawMap2(2*x, 2*y, map_base_red);
@@ -102,7 +101,8 @@ int main() {
 					}
 					break;
 				default:
-					DrawMap2(2*x, 2*y, map_mountain);
+					DrawMap2(2*x, 2*y, map_base_neu);
+					break;
 			}
 		}
 	}
