@@ -21,3 +21,7 @@
 *.hex
 *.lss
 *.map
+
+
+#uzebox
+*.uze
