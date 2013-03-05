@@ -35,7 +35,7 @@ void initialize();
 
 const char testlevel[] PROGMEM = 
 {
-    15,
+    14,
     PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, 
     CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
@@ -57,9 +57,9 @@ void main() {
 
 	for(char y = 0; y < 12; y++)
 	{
-		for(char x = 0; x < 15; x++)
+		for(char x = 0; x < 14; x++)
 		{
-			switch(testlevel[y*testlevel[0]+x]&TERRAIN_MASK)
+			switch(testlevel[y*testlevel[0]+x+1]&TERRAIN_MASK)
 			{
 				case PL:
 					DrawMap2(2*x, 2*y, map_plain);
@@ -71,7 +71,7 @@ void main() {
 					DrawMap2(2*x, 2*y, map_forest);
 					break;
 				case CT:
-					switch(testlevel[y*testlevel[0]+x]&OWNER_MASK)
+					switch(testlevel[y*testlevel[0]+x+1]&OWNER_MASK)
 					{
 						case PL1:
 							DrawMap2(2*x, 2*y, map_city_red);
@@ -101,7 +101,7 @@ void main() {
 					}
 					break;
 				default:
-					DrawMap2(2*x, 2*y, map_base_neu);
+					DrawMap2(2*x, 2*y, map_plain);
 					break;
 			}
 		}
