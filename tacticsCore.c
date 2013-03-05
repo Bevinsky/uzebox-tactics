@@ -135,7 +135,8 @@ void main() {
 		}
 	}
 
-
+	Print(0,VRAM_TILES_V-4,PSTR("Infantry"));
+	Print(0,VRAM_TILES_V-3,PSTR("HP a shit load"));
 
 	while(1) {
 		WaitVsync(1);
@@ -145,6 +146,9 @@ void main() {
 
 
 void initialize() {
+	Screen.scrollHeight = 28;
+	Screen.overlayHeight = 4;
+	Screen.overlayTileTable = terrainTiles; // seems like it has to share the tiles, otherwise we can't use the fonts
 	ClearVram();
 	SetFontTilesIndex(TERRAINTILES_SIZE);
 	SetTileTable(terrainTiles);
