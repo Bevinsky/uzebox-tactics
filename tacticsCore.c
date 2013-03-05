@@ -142,7 +142,7 @@ void main() {
 		char dir = 1;
 		WaitVsync(10);
 		Screen.scrollX += dir; //this doesn't work the way i thought it would... test it
-		PrintByte(0, VRAM_TILES_V-1, Screen.scrollX, 0);
+		PrintByte(2, VRAM_TILES_V-1, Screen.scrollX, 0);
 		if(Screen.scrollX > 20)
 			dir = -1;
 		else if(Screen.scrollX < 0)
