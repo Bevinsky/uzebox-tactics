@@ -39,7 +39,7 @@ const char map_city_red[] PROGMEM ={
 #define MAP_CITY_BLU_HEIGHT 2
 const char map_city_blu[] PROGMEM ={
 2,2
-,0x1,0x2,0x7,0x8};
+,0x11,0x12,0x17,0x18};
 
 #define MAP_BASE_NEU_WIDTH 2
 #define MAP_BASE_NEU_HEIGHT 2
