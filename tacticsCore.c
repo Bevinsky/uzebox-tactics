@@ -10,8 +10,8 @@
 
 /* data includes */
 
-#include "res/fontmap.inc"
 #include "res/tiles.inc"
+#include "res/fontmap.inc"
 
 /* globals */
 
@@ -26,9 +26,9 @@
 #define CT	0x4 // city
 #define BS	0x5 // base
 
-#define TERRAIN_MASK	0x6
-#define UNIT_MASK	0b00111000
-#define OWNER_MASK	0b11000000
+#define TERRAIN_MASK 0b00000111
+#define UNIT_MASK	 0b00111000
+#define OWNER_MASK	 0b11000000
 
 /* declarations */
 void initialize();
@@ -64,6 +64,7 @@ void main() {
 			{
 				case PL:
 					DrawMap2(2*x, 2*y, map_plain);
+
 					break;
 				case MO:
 					DrawMap2(2*x, 2*y, map_mountain);
@@ -102,7 +103,7 @@ void main() {
 					}
 					break;
 				default:
-					DrawMap2(2*x, 2*y, map_plain);
+					DrawMap2(2*x, 2*y, map_base_blu);
 					break;
 			}
 		}
