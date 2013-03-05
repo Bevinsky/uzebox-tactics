@@ -11,7 +11,7 @@
 /* data includes */
 
 #include "res/fontmap.inc"
-#include "res/tiles.inc" 
+#include "res/tiles.inc"
 
 /* globals */
 
@@ -26,30 +26,31 @@
 #define CT	0x4 // city
 #define BS	0x5 // base
 
-#define TERRAIN_MASK	0b00000111
+#define TERRAIN_MASK	0x6
 #define UNIT_MASK	0b00111000
 #define OWNER_MASK	0b11000000
 
 /* declarations */
 void initialize();
 
-const char testlevel[] PROGMEM = 
+const char testlevel[] PROGMEM =
 {
     14,
-    PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, 
-    CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, 
+    PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO,
+    CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL
 };
-
 
 /* main function */
 void main() {
@@ -121,16 +122,3 @@ void initialize() {
 	SetFontTilesIndex(TERRAINTILES_SIZE);
 	SetTileTable(terrainTiles);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
