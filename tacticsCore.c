@@ -15,27 +15,23 @@
 /* structs */
 struct GridBufferSquare {
     char terrain;
-    unsigned char unit; // 0xff for no unit
-    unsigned char property; // 0xff for no property
+    unsigned char unit; // index to Unit array; 0xff for no unit
+    unsigned char terrain; // bit-field (use the defines below); 0xff for no property
 };
 struct Unit {
-    char inUse;
+    char isUnit;
     char type;
     char player;
     char hp;
     unsigned char xPos;
     unsigned char yPos;
 };
-struct Property {
-	char owner;
-	unsigned char xPos;
-	unsigned char yPos;
-};
 
 /* defines */
 #define LEVEL_HEIGHT 11
 #define MAX_UNITS 40
 #define MAX_PROPERTIES 20
+#define MAX_LEVEL_WIDTH 30
 #define TRUE 1
 #define FALSE 0
 
@@ -49,14 +45,13 @@ struct Property {
 	while(1)\
 		WaitVsync(1);
 
-
-
 // terrain types
 #define PL	0x01 // plain
 #define MO	0x02 // mountain
 #define FO	0x03 // forest
 #define CT	0x04 // city
 #define BS	0x05 // base
+#define NO_TERRAIN 0xFF //no terrain
 
 // unit types
 #define UN1 0x08
@@ -64,6 +59,7 @@ struct Property {
 #define UN3 0x18
 #define UN4 0x20
 #define UN5 0x28
+#define NO_UNIT 0xFF
 
 // players
 #define PL1	0x80
@@ -91,9 +87,11 @@ char blinkMode = FALSE;
 const char* currentLevel;
 
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
-struct GridBufferSquare screenBuffer[16][LEVEL_HEIGHT];
+struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 
-unsigned char lastEmptyUnit = 0; //this can change during a game...
+unsigned char unitFirstEmpty = 0; //this can change during a game...
+unsigned char unitListStart = 0;
+unsigned char unitListEnd = 0;
 unsigned char propertyCount = 0; //...and this cannot
 
 struct Unit unitList[MAX_UNITS]; //is this enough?
@@ -140,12 +138,13 @@ void main() {
 	// overlapping with VRAM, which is a fucking pain in the ass (as in,
 	// makes it impossible to code)
 
+
 	while(1) {
-		unitList[0].hp++;
-		unitList[1].hp++;
-		unitList[2].hp++;
-		unitList[3].hp++;
-		unitList[4].hp++; // this cycles tiles on screen, wtf?
+		unitList[0].xPos++;
+		unitList[1].xPos++;
+		unitList[2].xPos++;
+		unitList[3].xPos++;
+		unitList[4].xPos++; // this cycles tiles on screen, wtf?
 		WaitVsync(5);
 	}
 	//loadLevel(testlevel);
@@ -277,34 +276,54 @@ void addProperty(unsigned char x, unsigned char y, char player) {
 	propertyCount++;
 }
 
+//TODO: MAX units *per* team, not total units
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
-	unsigned char i;
-	for(i = 0; i<lastEmptyUnit;i++) {
-		if(!unitList[i].inUse) {
-			unitList[i].inUse = TRUE;
-			unitList[i].hp = 100;
-			unitList[i].player = player;
-			unitList[i].type = type;
-			unitList[i].xPos = x;
-			unitList[i].yPos = y;
-			return i;
+
+	if(levelBuffer[x][y].unit != 0xFF)
+	{
+		ERROR("Unit already in space!");
+		return FALSE;
+	}
+	else
+	{
+		unitList[unitFirstEmpty].isUnit = TRUE;
+		unitList[unitFirstEmpty].hp = 100;
+		unitList[unitFirstEmpty].player = player;
+		unitList[unitFirstEmpty].type = type;
+		unitList[unitFirstEmpty].xPos = x;
+		unitList[unitFirstEmpty].yPos = y;
+		levelBuffer[x][y].unit = unitFirstEmpty;
+		
+		for(int i = unitFirstEmpty+1; i < MAX_UNITS-1; i++) //Starting from 1+ the known earliest empty space, search for the next empty space.
+		{
+			if(!unitList[i].isUnit) 
+			{
+				unitFirstEmpty = i;
+				break;
+			} 
+			else if(i == MAX_UNITS-1) //If we reach the end of the units list, the list is full. 
+				unitFirstEmpty = 0xFF;
 		}
 	}
-	// if we got here, we passed the last used slot
-	if(i == MAX_UNITS) {
-		//this is bad...
-		ERROR("err 01")
-	}
-
-	lastEmptyUnit = i+1;
-	unitList[i].inUse = TRUE;
-	unitList[i].hp = 100;
-	unitList[i].player = player;
-	unitList[i].type = type;
-	unitList[i].xPos = x;
-	unitList[i].yPos = y;
-	return i;
+	return TRUE;
 }
+
+char removeUnit(unsigned char x, unsigned char y) {
+	if(levelBuffer[x][y].unit == 0xFF)
+	{
+		ERROR("No unit in that space");
+		return FALSE;
+	}
+	else
+	{
+		memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
+		
+		if(unitFirstEmpty > levelBuffer[x][y].unit) //If this newly opened index is earlier than the last known index, change it accordingly.
+			unitFirstEmpty = levelBuffer[x][y].unit;
+		levelBuffer[x][y].unit = 0xFF; //Mark this grid buffer square as no unit.
+	}
+}
+		
 
 // gets the tile map for a certain buffer coordinate
 // NOT game coordinates!
