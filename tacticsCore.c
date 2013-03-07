@@ -14,7 +14,6 @@
 
 /* structs */
 struct GridBufferSquare {
-    char terrain;
     unsigned char unit; // index to Unit array; 0xff for no unit
     unsigned char terrain; // bit-field (use the defines below); 0xff for no property
 };
@@ -95,7 +94,6 @@ unsigned char unitListEnd = 0;
 unsigned char propertyCount = 0; //...and this cannot
 
 struct Unit unitList[MAX_UNITS]; //is this enough?
-struct Property propertyList[MAX_PROPERTIES]; // at most 20 properties...?
 
 /* declarations */
 // param1, param2, param3; return
@@ -188,7 +186,7 @@ void loadLevel(const char* level) {
 	propertyCount = 0;
 	// reset the unit list
 	for(x = 0;x < MAX_UNITS;x++)
-		unitList[x].inUse = FALSE;
+		unitList[x].isUnit = FALSE;
 
 	// loop y first because then we work in order. locality probably isn't an issue but eh.
 	for(y = 0; y < levelHeight; y++) {
@@ -201,21 +199,9 @@ void loadLevel(const char* level) {
 				//this can be a unit
 				addUnit(x, y, owner, unit);
 			}
-			if(terr == CT || terr == BS) {
-				//it's a property, add it
-				addProperty(x, y, owner);
+			levelBuffer.terrain = terr;
 			}
 		}
-	}
-}
-
-void preloadBuffer() {
-	cameraX = 0; // reset the camera
-	unsigned char x, lim;
-	lim = MIN(levelWidth, 14);
-	for(x = 0; x < lim; x++) {
-		//load each column
-		loadStripe(x, x); // source is the same as destination, since we are at the start of the buffer
 	}
 }
 
@@ -264,18 +250,6 @@ void loadStripe(unsigned char xSource, unsigned char xDest) {
 
 }
 
-void addProperty(unsigned char x, unsigned char y, char player) {
-	//this is only called at the start of a game, so we can just populate with the counter
-	if(propertyCount == MAX_PROPERTIES) {
-		//bad...
-		ERROR("err 02")
-	}
-	propertyList[propertyCount].owner = player;
-	propertyList[propertyCount].xPos = x;
-	propertyList[propertyCount].yPos = y;
-	propertyCount++;
-}
-
 //TODO: MAX units *per* team, not total units
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
 
@@ -316,7 +290,8 @@ char removeUnit(unsigned char x, unsigned char y) {
 	}
 	else
 	{
-		memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
+		unitList[levelBuffer[x][y].unit].isUnit = FALSE;
+		//memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
 		
 		if(unitFirstEmpty > levelBuffer[x][y].unit) //If this newly opened index is earlier than the last known index, change it accordingly.
 			unitFirstEmpty = levelBuffer[x][y].unit;
