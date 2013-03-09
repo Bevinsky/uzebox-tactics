@@ -30,6 +30,7 @@ struct Unit {
 #define MAX_UNITS 40
 #define MAX_PROPERTIES 20
 #define MAX_LEVEL_WIDTH 30
+#define MAX_VIS_WIDTH 14
 #define TRUE 1
 #define FALSE 0
 
@@ -39,7 +40,7 @@ struct Unit {
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 #define ERROR(msg) \
-	Print(0,0,PSTR(msg));\
+	Print(4,0,PSTR(msg));\
 	while(1)\
 		WaitVsync(1);
 
@@ -75,14 +76,22 @@ struct Unit {
 
 #define GETPLAY(x) ((x)&OWNER_MASK)
 
-// stripe load directions
-#define LOAD_LEFT   0xAA
-#define LOAD_RIGHT  0xBB
+// map load directions
+#define LOAD_ALL	0x1
+#define LOAD_LEFT   0x2
+#define LOAD_RIGHT  0x3
+
+//overlay lines
+#define OVR1 (VRAM_TILES_V-4)
+#define OVR2 (VRAM_TILES_V-3)
+#define OVR3 (VRAM_TILES_V-2)
+#define OVR4 (VRAM_TILES_V-1)
 
 /* globals */
-char levelWidth, levelHeight;
-char cursorX, cursorY;
-char cameraX; // no need for y
+unsigned char levelWidth, levelHeight;
+unsigned char cursorX, cursorY;
+unsigned char cameraX; // no need for y
+unsigned char vramX; // where cameraX is in vram coords
 
 char blinkCounter = 0;
 char blinkState = BLINK_TERRAIN;
@@ -93,10 +102,9 @@ const char* currentLevel;
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
 struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 
-unsigned char unitFirstEmpty = 0; //this can change during a game...
+unsigned char unitFirstEmpty = 0;
 unsigned char unitListStart = 0;
 unsigned char unitListEnd = 0;
-unsigned char propertyCount = 0; //...and this cannot
 
 struct Unit unitList[MAX_UNITS]; //is this enough?
 
@@ -104,72 +112,103 @@ struct Unit unitList[MAX_UNITS]; //is this enough?
 // param1, param2, param3; return
 void initialize();
 void loadLevel(const char*); // level
+void drawLevel(char); // direction
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
-void addProperty(unsigned char, unsigned char, char); // x, y, player
+void removeUnit(unsigned char, unsigned char); // x, y
 void moveCamera(char); // direction
 char isInBufferArea(char, char); // x, y; isInBufferArea
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
 
 const char testlevel[] PROGMEM =
 {
-    14,
-    PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO,
-    CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL
+    16,
+    PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL,
+    CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, PL, FO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
+    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO
 };
 
 /* main function */
 void main() {
 	initialize();
-	//loadLevel(testlevel);
-	/*addUnit(3, 6, PL2, UN3);
-	addUnit(5, 2, PL1, UN1);
-	addUnit(7, 6, PL2, UN4);
-	addUnit(8, 0, PL1, UN5);*/
+	loadLevel(testlevel);
+	FadeOut(0, true);
+	drawLevel(LOAD_ALL);
+	FadeIn(9, true);
 
-	// i don't know what's going on but it seems like the RAM variables are
-	// overlapping with VRAM, which is a fucking pain in the ass (as in,
-	// makes it impossible to code)
+	int prev, cur;
 
+	cur = ReadJoypad(0);
+	prev = cur;
 
 	while(1) {
-		for(int x = 0;x < 30;x++) {
-			for (int y = 0;y<10;y++) {
-				levelBuffer[20][5].info++;
-			}
+		cur = ReadJoypad(0);
+
+		PrintByte(1, OVR1, cameraX, 0);
+		PrintByte(1, OVR2, cur, 0);
+		PrintByte(1, OVR3, prev, 0);
+
+		if(cur&BTN_LEFT){
+			moveCamera(LOAD_LEFT);
 		}
-		PrintByte(5,5,&levelBuffer[20][5], 0);
-		PrintHexByte(5,6,&levelBuffer[20][5]);
-		WaitVsync(5);
+		else if(cur&BTN_RIGHT){
+			moveCamera(LOAD_RIGHT);
+		}
+
+
+
+		prev = cur;
+		WaitVsync(1);
 	}
-	//loadLevel(testlevel);
-	//preloadBuffer();
+
+	/*char right = 1;
+	while(1) {
+		PrintByte(3, OVR1,Screen.scrollX, 0);
+		PrintByte(0, OVR2, right, 0);
+				PrintByte(2, OVR3, cameraX, 0);
+				PrintByte(2, OVR4, vramX, 0);
+
+		if(right) {
+			if(Screen.scrollX % 16 == 0) {
+				drawLevel(LOAD_RIGHT);
+				cameraX++;
+				vramX = (vramX+2)&0x1F;
+				if(cameraX == levelWidth-MAX_VIS_WIDTH)
+					right = 0;
+			}
+			Screen.scrollX++;
+		}
+		else {
+
+			if(Screen.scrollX % 16 == 0) {
+				drawLevel(LOAD_LEFT);
+				cameraX--;
+				vramX = (vramX-2)&0x1F;
+				if(cameraX == 0) {
+					right = 1;
+				}
+			}
+			Screen.scrollX--;
+		}
+
+
+		WaitVsync(3);
+	}*/
+
 
 	while(1)
 		WaitVsync(1);
-	/*while(1) {
-		char dir = 1;
-		WaitVsync(3);
-		Screen.scrollX += dir; //this doesn't work the way i thought it would... test it
-		PrintByte(2, VRAM_TILES_V-1, Screen.scrollX, 0);
-		if(Screen.scrollX > 20)
-			dir = -1;
-		else if(Screen.scrollX < 0)
-			dir = 1;
-		drawHPBar(0, VRAM_TILES_V-3, Screen.scrollX%56);
-	}*/
 	return;
 }
 
@@ -191,7 +230,8 @@ void loadLevel(const char* level) {
 	levelHeight = LEVEL_HEIGHT;
 	currentLevel = level;
 	cameraX = 0;
-	propertyCount = 0;
+	Screen.scrollX = 0;
+	vramX = 0;
 	// reset the unit list
 	for(x = 0;x < MAX_UNITS;x++)
 		unitList[x].isUnit = FALSE;
@@ -212,13 +252,88 @@ void loadLevel(const char* level) {
 	}
 }
 
+void drawLevel(char dir) {
+	char x, y;
+	switch(dir){
+	case LOAD_ALL:
+		for(y = 0; y < levelHeight; y++) {
+			for(x = 0; x < levelWidth; x++) {
+				DrawMap2(x*2, y*2, getTileMap(x, y));
+			}
+		}
+		break;
+	case LOAD_LEFT:
+		// assume that we want to load the column that's cameraX-1
+		// load it at vramX-2
+		if(cameraX - 1 < 0) {
+			ERROR("inv. left map load");
+		}
+		for(y = 0; y < levelHeight; y++) {
+			DrawMap2(vramX-2, y*2, getTileMap(cameraX-1, y));
+		}
+		break;
+	case LOAD_RIGHT:
+		// assume that we want to load the column that's cameraX+MAX+1
+		// load it at vramX+MAX*2+2
+		if(cameraX+MAX_VIS_WIDTH+1 > MAX_LEVEL_WIDTH) {
+			ERROR("inv. right map load");
+		}
+		for(y = 0; y < levelHeight; y++) {
+			DrawMap2(vramX+(MAX_VIS_WIDTH+1)*2, y*2, getTileMap(cameraX+MAX_VIS_WIDTH+1, y));
+		}
+		break;
+	default:
+		ERROR("inv. load var");
+	}
+}
+
+void moveCamera(char dir) {
+	switch(dir) {
+	case LOAD_LEFT:
+		if(cameraX == 0) {
+			//nothing happens
+			return;
+		}
+		drawLevel(dir);
+		//animate the screen movement
+		while(1) {
+			Screen.scrollX--;
+			WaitVsync(1);
+			if(Screen.scrollX % 16 == 0)
+				break;
+		}
+		cameraX--;
+		vramX = (vramX-2)&0x1F;
+		// TODO: sprite movement (cursors, moving units, etc)
+		break;
+	case LOAD_RIGHT:
+		if(cameraX == levelWidth-MAX_VIS_WIDTH) {
+			return;
+		}
+		drawLevel(dir);
+		while(1) {
+			Screen.scrollX++;
+			WaitVsync(1);
+			if(Screen.scrollX % 16 == 0)
+				break;
+		}
+		cameraX++;
+		vramX = (vramX+2)&0x1F;
+		break;
+	case LOAD_ALL:
+	default:
+		ERROR("inv. move");
+	}
+
+}
+
 //TODO: MAX units *per* team, not total units
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
-
+	char ret;
 	if(levelBuffer[x][y].unit != 0xFF)
 	{
 		ERROR("Unit already in space!");
-		return FALSE;
+		return 0xff;
 	}
 	else
 	{
@@ -228,6 +343,7 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 		unitList[unitFirstEmpty].xPos = x;
 		unitList[unitFirstEmpty].yPos = y;
 		levelBuffer[x][y].unit = unitFirstEmpty;
+		ret = unitFirstEmpty;
 		
 		for(int i = unitFirstEmpty+1; i < MAX_UNITS-1; i++) //Starting from 1+ the known earliest empty space, search for the next empty space.
 		{
@@ -240,15 +356,14 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 				unitFirstEmpty = 0xFF;
 		}
 	}
-	return TRUE;
+	return ret;
 }
 
 // TODO: make a function that removes based on index too
-char removeUnit(unsigned char x, unsigned char y) {
+void removeUnit(unsigned char x, unsigned char y) {
 	if(levelBuffer[x][y].unit == 0xFF)
 	{
 		ERROR("No unit in that space");
-		return FALSE;
 	}
 	else
 	{
