@@ -11,6 +11,7 @@
 
 #include "res/tiles.inc"
 #include "res/fontmap.inc"
+#include "res/sprites.inc"
 
 /* structs */
 struct GridBufferSquare {
@@ -43,6 +44,9 @@ struct Unit {
 	Print(4,0,PSTR(msg));\
 	while(1)\
 		WaitVsync(1);
+
+// convert our player value to controller value
+#define JPPLAY(pl) ((pl) == PL2 ? 1 : 0)
 
 // level data masks
 #define TERRAIN_MASK 0b00000111
@@ -77,9 +81,15 @@ struct Unit {
 #define GETPLAY(x) ((x)&OWNER_MASK)
 
 // map load directions
-#define LOAD_ALL	0x1
-#define LOAD_LEFT   0x2
-#define LOAD_RIGHT  0x3
+#define LOAD_ALL	0x01
+#define LOAD_LEFT   0x04
+#define LOAD_RIGHT  0x06
+
+// cursor/movement directions
+#define DIR_LEFT    0x04
+#define DIR_RIGHT   0x06
+#define DIR_UP      0x08
+#define DIR_DOWN    0x0A
 
 //overlay lines
 #define OVR1 (VRAM_TILES_V-4)
@@ -89,13 +99,20 @@ struct Unit {
 
 /* globals */
 unsigned char levelWidth, levelHeight;
-unsigned char cursorX, cursorY;
-unsigned char cameraX; // no need for y
-unsigned char vramX; // where cameraX is in vram coords
+unsigned char cursorX, cursorY; // absolute coords
+unsigned char cameraX;
+unsigned char vramX; // where cameraX points to in vram coords, wrapped on 0x1F
 
 char blinkCounter = 0;
 char blinkState = BLINK_TERRAIN;
 char blinkMode = FALSE;
+
+char cursorCounter = 0; //for cursor alternation
+char cursorAlt = FALSE;
+
+int curInput;
+int prevInput;
+unsigned char activePlayer;
 
 const char* currentLevel;
 
@@ -116,18 +133,21 @@ void drawLevel(char); // direction
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
 void removeUnit(unsigned char, unsigned char); // x, y
-void moveCamera(char); // direction
+char moveCamera(char); // direction
+char moveCursor(char); // direction
 char isInBufferArea(char, char); // x, y; isInBufferArea
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
+void waitGameInput();
+void mapCursorSprite(char); // alternate
+
+void WaitVsync_(char);
+
 
 const char testlevel[] PROGMEM =
 {
     16,
     PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL,
     CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, CT|PL1, BS|PL1, CT|PL2, BS|PL2, CT|NEU, BS|NEU, PL, FO,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
-    PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
@@ -145,66 +165,37 @@ void main() {
 	loadLevel(testlevel);
 	FadeOut(0, true);
 	drawLevel(LOAD_ALL);
-	FadeIn(9, true);
+	mapCursorSprite(FALSE);
+	MoveSprite(0,0,0,2,2);
+	FadeIn(5, true);
 
-	int prev, cur;
+	waitGameInput();
 
-	cur = ReadJoypad(0);
-	prev = cur;
 
 	while(1) {
-		cur = ReadJoypad(0);
+		int cur = ReadJoypad(0);
 
-		PrintByte(1, OVR1, cameraX, 0);
-		PrintByte(1, OVR2, cur, 0);
-		PrintByte(1, OVR3, prev, 0);
-
-		if(cur&BTN_LEFT){
+		if(cur&BTN_LEFT)
 			moveCamera(LOAD_LEFT);
-		}
-		else if(cur&BTN_RIGHT){
+		if(cur&BTN_RIGHT)
 			moveCamera(LOAD_RIGHT);
-		}
 
 
-
-		prev = cur;
 		WaitVsync(1);
 	}
 
-	/*char right = 1;
+
+	char ttt = FALSE;
 	while(1) {
-		PrintByte(3, OVR1,Screen.scrollX, 0);
-		PrintByte(0, OVR2, right, 0);
-				PrintByte(2, OVR3, cameraX, 0);
-				PrintByte(2, OVR4, vramX, 0);
+		WaitVsync(20);
+		mapCursorSprite(ttt);
+		ttt = !ttt;
 
-		if(right) {
-			if(Screen.scrollX % 16 == 0) {
-				drawLevel(LOAD_RIGHT);
-				cameraX++;
-				vramX = (vramX+2)&0x1F;
-				if(cameraX == levelWidth-MAX_VIS_WIDTH)
-					right = 0;
-			}
-			Screen.scrollX++;
-		}
-		else {
-
-			if(Screen.scrollX % 16 == 0) {
-				drawLevel(LOAD_LEFT);
-				cameraX--;
-				vramX = (vramX-2)&0x1F;
-				if(cameraX == 0) {
-					right = 1;
-				}
-			}
-			Screen.scrollX--;
-		}
+	}
 
 
-		WaitVsync(3);
-	}*/
+
+
 
 
 	while(1)
@@ -220,6 +211,54 @@ void initialize() {
 	ClearVram();
 	SetFontTilesIndex(TERRAINTILES_SIZE);
 	SetTileTable(terrainTiles);
+	SetSpritesTileTable(spriteTiles);
+}
+
+void waitGameInput() {
+	curInput = prevInput = ReadJoypad(JPPLAY(activePlayer));
+	while(1) {
+		curInput = ReadJoypad(JPPLAY(activePlayer));
+
+		//drawOverlay();
+
+		if(curInput&BTN_A && !(prevInput&BTN_A)) {
+			if(levelBuffer[cursorX][cursorY].unit != 0xff && GETPLAY(unitList[levelBuffer[cursorX][cursorY].unit].info) == activePlayer) {
+				// enter select unit mode if there's a unit here and it belongs to us
+			}
+		}
+		if(curInput&BTN_X && !(prevInput&BTN_X)) {
+			// toggle blink mode
+			blinkMode = !blinkMode;
+			blinkCounter = 0;
+			blinkState = BLINK_TERRAIN;
+		}
+		if(curInput&BTN_LEFT) {
+			// move cur left
+			moveCursor(DIR_LEFT);
+			Print(0,OVR1, PSTR("LEFT"));
+		}
+		if(curInput&BTN_RIGHT) {
+			// move cur right
+			moveCursor(DIR_RIGHT);
+			Print(0,OVR1, PSTR("Right"));
+		}
+		if(curInput&BTN_UP) {
+			// move cur up
+			moveCursor(DIR_UP);
+			Print(0,OVR1, PSTR("Up"));
+		}
+		if(curInput&BTN_DOWN) {
+			// move cur down
+			moveCursor(DIR_DOWN);
+			Print(0,OVR1, PSTR("DOWN"));
+		}
+
+		PrintByte(2,OVR2,cursorX,0);
+		PrintByte(2,OVR3, cursorY, 0);
+
+		prevInput = curInput;
+		WaitVsync_(1);
+	}
 }
 
 void loadLevel(const char* level) {
@@ -287,33 +326,34 @@ void drawLevel(char dir) {
 	}
 }
 
-void moveCamera(char dir) {
+char moveCamera(char dir) {
 	switch(dir) {
 	case LOAD_LEFT:
 		if(cameraX == 0) {
 			//nothing happens
-			return;
+			return FALSE;
 		}
 		drawLevel(dir);
 		//animate the screen movement
 		while(1) {
 			Screen.scrollX--;
-			WaitVsync(1);
+			WaitVsync_(1);
 			if(Screen.scrollX % 16 == 0)
 				break;
 		}
 		cameraX--;
 		vramX = (vramX-2)&0x1F;
 		// TODO: sprite movement (cursors, moving units, etc)
+		// cursors seem to stay in place when screen moves... intredasting
 		break;
 	case LOAD_RIGHT:
 		if(cameraX == levelWidth-MAX_VIS_WIDTH) {
-			return;
+			return FALSE;
 		}
 		drawLevel(dir);
 		while(1) {
 			Screen.scrollX++;
-			WaitVsync(1);
+			WaitVsync_(1);
 			if(Screen.scrollX % 16 == 0)
 				break;
 		}
@@ -324,8 +364,85 @@ void moveCamera(char dir) {
 	default:
 		ERROR("inv. move");
 	}
-
+	return TRUE;
 }
+
+char moveCursor(char direction) {
+	char temp;
+	switch(direction) {
+	case DIR_UP:
+		if(cursorY == 0)
+			return FALSE;
+		temp = cursorY*16;
+		while(1) {
+			temp--;
+			MoveSprite(0, (cursorX-cameraX)*16, temp, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorY--;
+		break;
+	case DIR_DOWN:
+		if(cursorY == LEVEL_HEIGHT-1)
+			return FALSE;
+		temp = cursorY*16;
+		while(1) {
+			temp++;
+			MoveSprite(0, (cursorX-cameraX)*16, temp, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorY++;
+		break;
+	case DIR_LEFT:
+		if(cursorX == 0)
+			return FALSE;
+		if(cameraX > 0) {
+			if(cursorX-cameraX == 1) { // converts to screen coords
+				// we want to shift the screen, not the cursor itself
+				moveCamera(LOAD_LEFT);
+				cursorX--;
+				break; // don't continue
+			}
+		}
+		// if we don't want to move the screen, we move the cursor!
+		temp = (cursorX-cameraX)*16; // must be relative to screen
+		while(1) {
+			temp--;
+			MoveSprite(0, temp, cursorY*16, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorX--;
+		break;
+	case DIR_RIGHT:
+		if(cursorX == levelWidth-1)
+			return FALSE;
+		if(cameraX < levelWidth-MAX_VIS_WIDTH) {
+			if(cursorX-cameraX == MAX_VIS_WIDTH-2) { // right edge, screen coords
+				moveCamera(LOAD_RIGHT);
+				cursorX++;
+				break;
+			}
+		}
+		// else, move the cursor
+		temp = (cursorX-cameraX)*16;
+		while(1) {
+			temp++;
+			MoveSprite(0, temp, cursorY*16, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorX++;
+		break;
+	}
+	return TRUE;
+}
+
 
 //TODO: MAX units *per* team, not total units
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
@@ -471,6 +588,25 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 	}
 }
 
+void mapCursorSprite(char alt) {
+	if(!alt) {
+		sprites[0].tileIndex = 0;
+		sprites[1].tileIndex = 0;
+		sprites[2].tileIndex = 2;
+		sprites[3].tileIndex = 2;
+	}
+	else {
+		sprites[0].tileIndex = 1;
+		sprites[1].tileIndex = 1;
+		sprites[2].tileIndex = 3;
+		sprites[3].tileIndex = 3;
+	}
+	sprites[0].flags = 0;
+	sprites[1].flags = SPRITE_FLIP_X;
+	sprites[2].flags = 0;
+	sprites[3].flags = SPRITE_FLIP_X;
+}
+
 void drawHPBar(unsigned char x, unsigned char y, char val) {
 	if(val > 56)
 		val = 56;
@@ -563,6 +699,29 @@ void testDraw() {
 					break;
 			}
 		}
+	}
+
+}
+
+void WaitVsync_(char count) {
+	// this is used for periodicals like blink and cursor alternation
+	// call this instead of WaitVsync to make sure that periodicals
+	// get called even if we are doing something function-locked
+	while(count > 0) {
+		WaitVsync(1); // wait only once
+
+		// insert periodicals here
+		if(cursorCounter >= 30) {
+			cursorCounter = 0;
+			mapCursorSprite(cursorAlt);
+			cursorAlt = !cursorAlt;
+		}
+		cursorCounter++;
+
+		//checkBlinkState();
+
+
+		count--;
 	}
 
 }
