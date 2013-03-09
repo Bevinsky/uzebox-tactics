@@ -133,7 +133,11 @@ const char testlevel[] PROGMEM =
 /* main function */
 void main() {
 	initialize();
-	//addUnit(3, 6, PL2, UN3);
+	//loadLevel(testlevel);
+	/*addUnit(3, 6, PL2, UN3);
+	addUnit(5, 2, PL1, UN1);
+	addUnit(7, 6, PL2, UN4);
+	addUnit(8, 0, PL1, UN5);*/
 
 	// i don't know what's going on but it seems like the RAM variables are
 	// overlapping with VRAM, which is a fucking pain in the ass (as in,
@@ -141,11 +145,13 @@ void main() {
 
 
 	while(1) {
-		unitList[0].xPos++;
-		unitList[1].xPos++;
-		unitList[2].xPos++;
-		unitList[3].xPos++;
-		unitList[4].xPos++; // this cycles tiles on screen, wtf?
+		for(int x = 0;x < 30;x++) {
+			for (int y = 0;y<10;y++) {
+				levelBuffer[20][5].info++;
+			}
+		}
+		PrintByte(5,5,&levelBuffer[20][5], 0);
+		PrintHexByte(5,6,&levelBuffer[20][5]);
 		WaitVsync(5);
 	}
 	//loadLevel(testlevel);
