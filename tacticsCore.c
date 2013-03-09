@@ -15,12 +15,11 @@
 /* structs */
 struct GridBufferSquare {
     unsigned char unit; // index to Unit array; 0xff for no unit
-    unsigned char terrain; // bit-field (use the defines below); 0xff for no property
+    unsigned char info; // terrain and player bitfield
 };
 struct Unit {
     char isUnit;
-    char type;
-    char player;
+    char info; // unit type and player bitfield
     char hp;
     unsigned char xPos;
     unsigned char yPos;
@@ -44,13 +43,20 @@ struct Unit {
 	while(1)\
 		WaitVsync(1);
 
+// level data masks
+#define TERRAIN_MASK 0b00000111
+#define UNIT_MASK	 0b00111000
+#define OWNER_MASK	 0b11000000
+
 // terrain types
 #define PL	0x01 // plain
 #define MO	0x02 // mountain
 #define FO	0x03 // forest
 #define CT	0x04 // city
 #define BS	0x05 // base
-#define NO_TERRAIN 0xFF //no terrain
+#define NO_TERRAIN 0xFF //no terrain (when would there ever be no terrain?)
+
+#define GETTERR(x) ((x)&TERRAIN_MASK)
 
 // unit types
 #define UN1 0x08
@@ -60,15 +66,14 @@ struct Unit {
 #define UN5 0x28
 #define NO_UNIT 0xFF
 
+#define GETUNIT(x) ((x)&UNIT_MASK)
+
 // players
 #define PL1	0x80
 #define PL2	0x40
 #define NEU	0x00
 
-// level data masks
-#define TERRAIN_MASK 0b00000111
-#define UNIT_MASK	 0b00111000
-#define OWNER_MASK	 0b11000000
+#define GETPLAY(x) ((x)&OWNER_MASK)
 
 // stripe load directions
 #define LOAD_LEFT   0xAA
@@ -102,8 +107,6 @@ void loadLevel(const char*); // level
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
 void addProperty(unsigned char, unsigned char, char); // x, y, player
-void preloadBuffer();
-void loadStripe(unsigned char, unsigned char); // xSource, xDest
 void moveCamera(char); // direction
 char isInBufferArea(char, char); // x, y; isInBufferArea
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
@@ -182,7 +185,6 @@ void loadLevel(const char* level) {
 	levelHeight = LEVEL_HEIGHT;
 	currentLevel = level;
 	cameraX = 0;
-	lastEmptyUnit = 0;
 	propertyCount = 0;
 	// reset the unit list
 	for(x = 0;x < MAX_UNITS;x++)
@@ -199,55 +201,9 @@ void loadLevel(const char* level) {
 				//this can be a unit
 				addUnit(x, y, owner, unit);
 			}
-			levelBuffer.terrain = terr;
-			}
+			levelBuffer[x][y].info = terr | owner;
 		}
 	}
-}
-
-// loads a column into both buffer and vram
-// source is the game index column index
-// dest is the index of the buffer
-void loadStripe(unsigned char xSource, unsigned char xDest) {
-	unsigned char units[LEVEL_HEIGHT];
-	unsigned char properties[LEVEL_HEIGHT];
-	unsigned char y, i, terrain;
-	const char* tilemap;
-	// reset the lists to "no unit/property"
-	for(y = 0; y < LEVEL_HEIGHT; y++) {
-		units[y] = 0xff;
-		properties[y] = 0xff;
-	}
-
-	if(xSource < 0 || xSource >= levelWidth) {
-		ERROR("err 03")
-	}
-	if(xDest < 0 || xDest >= 17) {
-		ERROR("err 04")
-	}
-
-	for(i = 0;i < lastEmptyUnit; i++) {
-		if(unitList[i].inUse && unitList[i].xPos == xSource) {
-			//unit is in the right column
-			units[unitList[i].yPos] = i; // assign the unit for this row to the list
-		}
-	}
-	for(i = 0; i < propertyCount; i++) {
-		if(propertyList[i].xPos == xSource) {
-			//property is in the right column
-			properties[propertyList[i].yPos] = i; // assign the property for this row to the list
-		}
-	}
-
-	for(y = 0; y < LEVEL_HEIGHT; y++) {
-		terrain = pgm_read_byte(&currentLevel[y*levelWidth+xSource+1]) & TERRAIN_MASK;
-		screenBuffer[xDest][y].terrain = terrain;
-		screenBuffer[xDest][y].unit = units[y];
-		screenBuffer[xDest][y].property = properties[y];
-		tilemap = getTileMap(xDest, y);
-		DrawMap2(xDest, y, tilemap);
-	}
-
 }
 
 //TODO: MAX units *per* team, not total units
@@ -262,8 +218,7 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	{
 		unitList[unitFirstEmpty].isUnit = TRUE;
 		unitList[unitFirstEmpty].hp = 100;
-		unitList[unitFirstEmpty].player = player;
-		unitList[unitFirstEmpty].type = type;
+		unitList[unitFirstEmpty].info = player | type;
 		unitList[unitFirstEmpty].xPos = x;
 		unitList[unitFirstEmpty].yPos = y;
 		levelBuffer[x][y].unit = unitFirstEmpty;
@@ -282,6 +237,7 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	return TRUE;
 }
 
+// TODO: make a function that removes based on index too
 char removeUnit(unsigned char x, unsigned char y) {
 	if(levelBuffer[x][y].unit == 0xFF)
 	{
@@ -300,25 +256,19 @@ char removeUnit(unsigned char x, unsigned char y) {
 }
 		
 
-// gets the tile map for a certain buffer coordinate
-// NOT game coordinates!
+// gets the tile map for a certain game coordinate
 const char* getTileMap(unsigned char x, unsigned char y) {
 	unsigned char terrain, unitOwner, propertyOwner, unit, displayUnit;
-	terrain = screenBuffer[x][y].terrain;
-	if(screenBuffer[x][y].unit != 0xff) {
-		unit = unitList[screenBuffer[x][y].unit].type;
-		unitOwner = unitList[screenBuffer[x][y].unit].player;
+	terrain = GETTERR(levelBuffer[x][y].info);
+	if(levelBuffer[x][y].unit != 0xff) {
+		unit = GETUNIT(unitList[levelBuffer[x][y].unit].info);
+		unitOwner = GETPLAY(unitList[levelBuffer[x][y].unit].info);
 	}
 	else {
 		unit = 0;
 		unitOwner = 0;
 	}
-	if(screenBuffer[x][y].property != 0xff) {
-		propertyOwner = propertyList[screenBuffer[x][y].property].owner;
-	}
-	else {
-		propertyOwner = 0;
-	}
+	propertyOwner = GETPLAY(levelBuffer[x][y].info); // this should be 0 if there is no owner
 
 	if(unit) { // if we have a unit to display, display it!
 		// TODO: add exceptions for when we are moving a unit with sprites
