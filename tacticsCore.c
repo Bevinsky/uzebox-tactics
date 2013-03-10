@@ -139,11 +139,13 @@ char isInBufferArea(char, char); // x, y; isInBufferArea
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
 void waitGameInput();
 void mapCursorSprite(char); // alternate
+void redrawUnits();
+void setBlinkMode(char); // on-off
 
 void WaitVsync_(char);
 
 
-const char testlevel[] PROGMEM =
+/*const char testlevel[] PROGMEM =
 {
     16,
     PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL, MO, FO, PL,
@@ -157,6 +159,22 @@ const char testlevel[] PROGMEM =
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO
+};*/
+
+const char testlevel[] PROGMEM =
+{
+	16,
+	PL, FO, PL, PL, PL, PL, PL, PL, PL, MO, MO, PL, MO, PL, PL, MO,
+	PL, PL, MO, MO, MO, MO, BS, PL, PL, CT, MO, FO, PL, PL|UN1|PL2, BS|PL2, PL,
+	PL, BS|PL1, PL, MO, PL, PL, FO, FO, PL, FO, FO, PL, PL, MO, MO, PL,
+	PL, FO|UN1|PL1, PL, MO, PL, PL, PL, FO, PL, PL, FO, PL, FO, PL, PL, PL,
+	PL, PL, MO, MO, PL, MO, MO, FO, PL, PL, PL, FO, PL, FO, PL, PL,
+	PL, FO, PL, MO, PL, MO, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+	PL, PL, PL, PL, MO, PL, PL, PL, CT, MO, MO, PL, PL, FO, PL, PL,
+	PL, FO, PL, PL, PL, PL, PL, FO, FO, PL, MO, FO, FO, FO, PL, PL,
+	PL, PL, CT, PL, PL, FO, FO, PL, PL, PL, MO, FO, PL, PL, PL, PL,
+	FO, FO, FO, PL, PL, PL, FO, FO, PL, MO, PL, PL, FO, CT, PL, PL,
+	PL, MO, MO, FO, MO, PL, PL, PL, FO, BS, PL, MO, MO, MO, MO, PL
 };
 
 /* main function */
@@ -228,9 +246,7 @@ void waitGameInput() {
 		}
 		if(curInput&BTN_X && !(prevInput&BTN_X)) {
 			// toggle blink mode
-			blinkMode = !blinkMode;
-			blinkCounter = 0;
-			blinkState = BLINK_TERRAIN;
+			setBlinkMode(!blinkMode);
 		}
 		if(curInput&BTN_LEFT) {
 			// move cur left
@@ -282,11 +298,12 @@ void loadLevel(const char* level) {
 			terr = val & TERRAIN_MASK;
 			owner = val & OWNER_MASK;
 			unit = val & UNIT_MASK;
+			levelBuffer[x][y].info = terr | owner;
+			levelBuffer[x][y].unit = 0xFF;
 			if(unit != 0 && owner != NEU) {
 				//this can be a unit
 				addUnit(x, y, owner, unit);
 			}
-			levelBuffer[x][y].info = terr | owner;
 		}
 	}
 }
@@ -324,6 +341,27 @@ void drawLevel(char dir) {
 	default:
 		ERROR("inv. load var");
 	}
+}
+
+
+void redrawUnits() {
+	// redraws all unit tiles on the visible map
+	unsigned char i, v;
+
+	v = 0;
+	// not sure how the unit list thing works.
+	for(i = 0; i < MAX_UNITS; i++) {
+		if(unitList[i].isUnit) {
+			if(unitList[i].xPos >= cameraX-1 && unitList[i].xPos <= cameraX+MAX_VIS_WIDTH) {
+				// the unit is in our current camera buffer, redraw it
+				DrawMap2(((unitList[i].xPos-cameraX)*2 + vramX)&0x1F, unitList[i].yPos*2, getTileMap(unitList[i].xPos, unitList[i].yPos));
+				PrintByte(10, OVR1, cameraX, 0);
+				PrintByte(10, OVR2, vramX, 0);
+			}
+			v++;
+		}
+	}
+	PrintByte(3, OVR4, v, 0);
 }
 
 char moveCamera(char dir) {
@@ -443,8 +481,16 @@ char moveCursor(char direction) {
 	return TRUE;
 }
 
+void setBlinkMode(char active) {
+	blinkMode = active;
+	blinkCounter = 0;
+	blinkState = BLINK_TERRAIN;
+	redrawUnits();
+}
+
 
 //TODO: MAX units *per* team, not total units
+//TODO: unit adding (and probably removing) is FLAWED, needs to be redone
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	char ret;
 	if(levelBuffer[x][y].unit != 0xFF)
@@ -532,25 +578,49 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 
 
 	if(displayUnit) {
-		// TODO: add unit tiles
-		return map_mountain;
-		/*switch(unit) {
+		switch(unit) { // all of these need placeholders
 		case UN1:
-			//return;
+			switch(unitOwner) {
+			case PL1:
+				return map_unit1_red;
+			case PL2:
+				return map_unit1_blu;
+			}
 			break;
 		case UN2:
-			//return;
+			switch(unitOwner) {
+			case PL1:
+				return map_unit2_red;
+			case PL2:
+				return map_unit2_blu;
+			}
 			break;
 		case UN3:
-			//return;
+			switch(unitOwner) {
+			case PL1:
+				return map_unit3_red;
+			case PL2:
+				return map_unit3_blu;
+			}
 			break;
 		case UN4:
-			//return;
+			switch(unitOwner) {
+			case PL1:
+				return map_unit4_red;
+			case PL2:
+				return map_unit4_blu;
+			}
 			break;
 		case UN5:
-			//return;
+			switch(unitOwner) {
+			case PL1:
+				return map_unit5_red;
+			case PL2:
+				return map_unit5_blu;
+			}
 			break;
-		}*/
+		}
+		return map_placeholder; // in case all the above passes
 	}
 	else {
 		switch(terrain) {
@@ -569,7 +639,7 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 			case NEU:
 				return map_city_neu;
 			default:
-				return map_plain; //placeholder needed
+				return map_placeholder;
 			}
 		case BS:
 			switch(propertyOwner) {
@@ -580,10 +650,10 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 			case NEU:
 				return map_base_neu;
 			default:
-				return map_plain; //placeholder needed
+				return map_placeholder;
 			}
 		default:
-			return map_plain; // placeholder needed
+			return map_placeholder;
 		}
 	}
 }
@@ -648,61 +718,6 @@ void drawHPBar(unsigned char x, unsigned char y, char val) {
 
 }
 
-void testDraw() {
-	for(char y = 0; y < LEVEL_HEIGHT; y++)
-	{
-		for(char x = 0; x < 14; x++)
-		{
-			switch(pgm_read_byte(&testlevel[y*pgm_read_byte(&testlevel[0])+x+1])&TERRAIN_MASK)
-			{
-				case PL:
-					DrawMap2(2*x, 2*y, map_plain);
-					break;
-				case MO:
-					DrawMap2(2*x, 2*y, map_mountain);
-					break;
-				case FO:
-					DrawMap2(2*x, 2*y, map_forest);
-					break;
-				case CT:
-					switch(pgm_read_byte(&testlevel[y*pgm_read_byte(&testlevel[0])+x])&OWNER_MASK)
-					{
-						case PL1:
-							DrawMap2(2*x, 2*y, map_city_red);
-							break;
-						case PL2:
-							DrawMap2(2*x, 2*y, map_city_blu);
-							break;
-						case NEU:
-						default:
-							DrawMap2(2*x, 2*y, map_city_neu);
-						break;
-					}
-					break;
-				case BS:
-					switch(pgm_read_byte(&testlevel[y*pgm_read_byte(&testlevel[0])+x])&OWNER_MASK)
-					{
-						case PL1:
-							DrawMap2(2*x, 2*y, map_base_red);
-							break;
-						case PL2:
-							DrawMap2(2*x, 2*y, map_base_blu);
-							break;
-						case NEU:
-						default:
-							DrawMap2(2*x, 2*y, map_base_neu);
-						break;
-					}
-					break;
-				default:
-					DrawMap2(2*x, 2*y, map_base_blu);
-					break;
-			}
-		}
-	}
-
-}
-
 void WaitVsync_(char count) {
 	// this is used for periodicals like blink and cursor alternation
 	// call this instead of WaitVsync to make sure that periodicals
@@ -711,7 +726,8 @@ void WaitVsync_(char count) {
 		WaitVsync(1); // wait only once
 
 		// insert periodicals here
-		if(cursorCounter >= 30) {
+		//TODO: make sure the correct periodicals only fire when they are supposed to
+		if(cursorCounter >= 40) {
 			cursorCounter = 0;
 			mapCursorSprite(cursorAlt);
 			cursorAlt = !cursorAlt;
@@ -719,6 +735,21 @@ void WaitVsync_(char count) {
 		cursorCounter++;
 
 		//checkBlinkState();
+
+		if(blinkMode) {
+			if(blinkCounter >= 30) {
+				// toggle blink
+				blinkState = !blinkState;
+				redrawUnits();
+				blinkCounter = 0;
+			}
+			blinkCounter++;
+		}
+		else {
+			blinkCounter = 0;
+		}
+
+
 
 
 		count--;
