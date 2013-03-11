@@ -104,7 +104,7 @@ unsigned char cameraX;
 unsigned char vramX; // where cameraX points to in vram coords, wrapped on 0x1F
 
 char blinkCounter = 0;
-char blinkState = BLINK_TERRAIN;
+char blinkState = BLINK_UNITS;
 char blinkMode = FALSE;
 
 char cursorCounter = 0; //for cursor alternation
@@ -163,7 +163,7 @@ void WaitVsync_(char);
 
 const char testlevel[] PROGMEM =
 {
-	16,
+	16, 11,
 	PL, FO, PL, PL, PL, PL, PL, PL, PL, MO, MO, PL, MO, PL, PL, MO,
 	PL, PL, MO, MO, MO, MO, BS, PL, PL, CT, MO, FO, PL, PL|UN1|PL2, BS|PL2, PL,
 	PL, BS|PL1, PL, MO, PL, PL, FO, FO, PL, FO, FO, PL, PL, MO, MO, PL,
@@ -177,10 +177,19 @@ const char testlevel[] PROGMEM =
 	PL, MO, MO, FO, MO, PL, PL, PL, FO, BS, PL, MO, MO, MO, MO, PL
 };
 
+const char shortlevel[] PROGMEM =
+{
+	5, 4,
+	PL, PL, PL, PL, CT,
+	BS|PL1, MO, MO, FO, MO|UN1|PL1,
+	FO, MO, MO, BS|PL2, CT|UN3|PL2,
+	PL, PL, PL, PL, CT
+};
+
 /* main function */
 void main() {
 	initialize();
-	loadLevel(testlevel);
+	loadLevel(shortlevel);
 	FadeOut(0, true);
 	drawLevel(LOAD_ALL);
 	mapCursorSprite(FALSE);
@@ -282,7 +291,11 @@ void loadLevel(const char* level) {
 	unsigned int x, y; // i know i said this wasn't needed but there will be overflow on the array access otherwise
 
 	levelWidth = pgm_read_byte(&level[0]);
-	levelHeight = LEVEL_HEIGHT;
+	levelHeight = pgm_read_byte(&level[1]);
+	if(levelHeight > 11) {
+		ERROR("inv. level height");
+	}
+
 	currentLevel = level;
 	cameraX = 0;
 	Screen.scrollX = 0;
@@ -294,7 +307,7 @@ void loadLevel(const char* level) {
 	// loop y first because then we work in order. locality probably isn't an issue but eh.
 	for(y = 0; y < levelHeight; y++) {
 		for(x = 0; x < levelWidth; x++) {
-			val = pgm_read_byte(&level[y*levelWidth+x+1]);
+			val = pgm_read_byte(&level[y*levelWidth+x+2]);
 			terr = val & TERRAIN_MASK;
 			owner = val & OWNER_MASK;
 			unit = val & UNIT_MASK;
@@ -422,7 +435,7 @@ char moveCursor(char direction) {
 		cursorY--;
 		break;
 	case DIR_DOWN:
-		if(cursorY == LEVEL_HEIGHT-1)
+		if(cursorY == levelHeight-1)
 			return FALSE;
 		temp = cursorY*16;
 		while(1) {
@@ -484,7 +497,7 @@ char moveCursor(char direction) {
 void setBlinkMode(char active) {
 	blinkMode = active;
 	blinkCounter = 0;
-	blinkState = BLINK_TERRAIN;
+	blinkState = BLINK_UNITS;
 	redrawUnits();
 }
 
