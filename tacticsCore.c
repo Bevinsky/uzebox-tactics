@@ -506,6 +506,7 @@ void setBlinkMode(char active) {
 //TODO: unit adding (and probably removing) is FLAWED, needs to be redone
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	char ret;
+
 	if(levelBuffer[x][y].unit != 0xFF)
 	{
 		ERROR("Unit already in space!");
@@ -521,6 +522,8 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 		levelBuffer[x][y].unit = unitFirstEmpty;
 		ret = unitFirstEmpty;
 		
+
+		/*
 		for(int i = unitFirstEmpty+1; i < MAX_UNITS-1; i++) //Starting from 1+ the known earliest empty space, search for the next empty space.
 		{
 			if(!unitList[i].isUnit) 
@@ -531,8 +534,20 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 			else if(i == MAX_UNITS-1) //If we reach the end of the units list, the list is full. 
 				unitFirstEmpty = 0xFF;
 		}
+		*/
+		char i = unitFirstEmpty;
+		while(i != unitFirstEmpty - 1)
+		{
+			if(!unitList[i].isUnit)
+			{
+				unitFirstEmpty = i;
+				return ret;
+			}
+			i++;
+		}
+		unitFirstEmpty = 0xFF;
+		return 0xFF;
 	}
-	return ret;
 }
 
 // TODO: make a function that removes based on index too
