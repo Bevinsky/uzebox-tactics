@@ -569,7 +569,7 @@ void removeUnit(unsigned char x, unsigned char y) {
 		unitList[levelBuffer[x][y].unit].isUnit = FALSE;
 		//memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
 		
-		if(unitFirstEmpty > levelBuffer[x][y].unit) //If this newly opened index is earlier than the last known index, change it accordingly.
+		if(unitFirstEmpty > (levelBuffer[x][y].unit + (levelBuffer[x][y].unit < unitFirstEmpty) * MAX_UNITS) ) //If this newly opened index is earlier than the last known index, change it accordingly.
 			unitFirstEmpty = levelBuffer[x][y].unit;
 		levelBuffer[x][y].unit = 0xFF; //Mark this grid buffer square as no unit.
 	}
