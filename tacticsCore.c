@@ -510,7 +510,12 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	if(levelBuffer[x][y].unit != 0xFF)
 	{
 		ERROR("Unit already in space!");
-		return 0xff;
+		return 0xFF;
+	}
+	else if (unitFirstEmpty == 0xFF)
+	{
+		ERROR("Unit list fulL!");
+		return 0xFF;
 	}
 	else
 	{
@@ -541,12 +546,15 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 			if(!unitList[i].isUnit)
 			{
 				unitFirstEmpty = i;
-				return ret;
+				break;
 			}
-			i++;
+			if(i == MAX_UNITS-1)
+				i = 0;
+			else
+				i++;
 		}
 		unitFirstEmpty = 0xFF;
-		return 0xFF;
+		return ret;
 	}
 }
 
