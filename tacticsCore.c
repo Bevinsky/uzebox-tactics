@@ -116,6 +116,11 @@ unsigned char activePlayer;
 
 const char* currentLevel;
 
+enum
+{
+	scrolling, unit_menu, unit_movement, pause, menu
+}	controlState;
+
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
 struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 
@@ -247,36 +252,61 @@ void waitGameInput() {
 		curInput = ReadJoypad(JPPLAY(activePlayer));
 
 		//drawOverlay();
+		
+		switch(controlState) //scrolling, unit_menu, unit_movement, pause, menu
+		{
+			case scrolling:
+				if(curInput&BTN_A && !(prevInput&BTN_A)) {
+					if(levelBuffer[cursorX][cursorY].unit != 0xff && GETPLAY(unitList[levelBuffer[cursorX][cursorY].unit].info) == activePlayer) {
+						// enter select unit mode if there's a unit here and it belongs to us
+						//displayUnitMenu();
+						controlState = unit_menu;
+					}
+				}
+				if(curInput&BTN_X && !(prevInput&BTN_X)) {
+					// toggle blink mode
+					setBlinkMode(!blinkMode);
+				}
+				if(curInput&BTN_LEFT) {
+					// move cur left
+					moveCursor(DIR_LEFT);
+					Print(0,OVR1, PSTR("LEFT"));
+				}
+				if(curInput&BTN_RIGHT) {
+					// move cur right
+					moveCursor(DIR_RIGHT);
+					Print(0,OVR1, PSTR("Right"));
+				}
+				if(curInput&BTN_UP) {
+					// move cur up
+					moveCursor(DIR_UP);
+					Print(0,OVR1, PSTR("Up"));
+				}
+				if(curInput&BTN_DOWN) {
+					// move cur down
+					moveCursor(DIR_DOWN);
+					Print(0,OVR1, PSTR("DOWN"));
+				}
+				break;
+			case unit_menu:
+				
+				
+				break;
+				
+			case unit_movement:
+				
+				break;
+				
+			case pause:
+			
+				break;
+				
+			case menu:
+				
+				break;
+		}
 
-		if(curInput&BTN_A && !(prevInput&BTN_A)) {
-			if(levelBuffer[cursorX][cursorY].unit != 0xff && GETPLAY(unitList[levelBuffer[cursorX][cursorY].unit].info) == activePlayer) {
-				// enter select unit mode if there's a unit here and it belongs to us
-			}
-		}
-		if(curInput&BTN_X && !(prevInput&BTN_X)) {
-			// toggle blink mode
-			setBlinkMode(!blinkMode);
-		}
-		if(curInput&BTN_LEFT) {
-			// move cur left
-			moveCursor(DIR_LEFT);
-			Print(0,OVR1, PSTR("LEFT"));
-		}
-		if(curInput&BTN_RIGHT) {
-			// move cur right
-			moveCursor(DIR_RIGHT);
-			Print(0,OVR1, PSTR("Right"));
-		}
-		if(curInput&BTN_UP) {
-			// move cur up
-			moveCursor(DIR_UP);
-			Print(0,OVR1, PSTR("Up"));
-		}
-		if(curInput&BTN_DOWN) {
-			// move cur down
-			moveCursor(DIR_DOWN);
-			Print(0,OVR1, PSTR("DOWN"));
-		}
+		
 
 		PrintByte(2,OVR2,cursorX,0);
 		PrintByte(2,OVR3, cursorY, 0);
@@ -284,6 +314,14 @@ void waitGameInput() {
 		prevInput = curInput;
 		WaitVsync_(1);
 	}
+}
+
+void displayUnitMenu()
+{
+	Print(8,4,PSTR("one"));
+	Print(8,5,PSTR("two"));
+	Print(9,4,PSTR("three"));
+	Print(9,5,PSTR("four"));
 }
 
 void loadLevel(const char* level) {
@@ -553,7 +591,10 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 			else
 				i++;
 		}
-		unitFirstEmpty = 0xFF;
+		
+		if(unitFirstEmpty == ret)
+			unitFirstEmpty = 0xFF;
+		
 		return ret;
 	}
 }
