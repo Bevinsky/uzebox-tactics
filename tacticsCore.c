@@ -136,6 +136,7 @@ void initialize();
 void loadLevel(const char*); // level
 void drawLevel(char); // direction
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
+void drawOverlay();
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
 void removeUnit(unsigned char, unsigned char); // x, y
 char moveCamera(char); // direction
@@ -194,7 +195,7 @@ const char shortlevel[] PROGMEM =
 /* main function */
 void main() {
 	initialize();
-	loadLevel(shortlevel);
+	loadLevel(testlevel);
 	FadeOut(0, true);
 	drawLevel(LOAD_ALL);
 	mapCursorSprite(FALSE);
@@ -414,6 +415,17 @@ void redrawUnits() {
 	}
 	PrintByte(3, OVR4, v, 0);
 }
+
+void drawOverlay() {
+
+	// draw the basic overlay
+	// - is the cursor on a unit? display the information
+
+	// are we in unit action mode? draw the action menu (with selection arrow)
+
+
+}
+
 
 char moveCamera(char dir) {
 	switch(dir) {
