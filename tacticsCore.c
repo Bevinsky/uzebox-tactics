@@ -97,6 +97,18 @@ struct Unit {
 #define OVR3 (VRAM_TILES_V-2)
 #define OVR4 (VRAM_TILES_V-1)
 
+//interface tiles (this might change if the tile map changes drastically, fuck gconvert
+#define INTERFACE_TL 23
+#define INTERFACE_TOP 24
+#define INTERFACE_TR 25
+#define INTERFACE_LEFT 26
+#define INTERFACE_MID 27
+#define INTERFACE_RIGHT 28
+#define INTERFACE_BL 35
+#define INTERFACE_BOT 36
+#define INTERFACE_BR 37
+
+
 /* globals */
 unsigned char levelWidth, levelHeight;
 unsigned char cursorX, cursorY; // absolute coords
@@ -147,6 +159,7 @@ void waitGameInput();
 void mapCursorSprite(char); // alternate
 void redrawUnits();
 void setBlinkMode(char); // on-off
+const char* getUnitName(unsigned char); // unit; unitName
 
 void WaitVsync_(char);
 
@@ -252,7 +265,7 @@ void waitGameInput() {
 	while(1) {
 		curInput = ReadJoypad(JPPLAY(activePlayer));
 
-		//drawOverlay();
+		drawOverlay();
 		
 		switch(controlState) //scrolling, unit_menu, unit_movement, pause, menu
 		{
@@ -271,22 +284,18 @@ void waitGameInput() {
 				if(curInput&BTN_LEFT) {
 					// move cur left
 					moveCursor(DIR_LEFT);
-					Print(0,OVR1, PSTR("LEFT"));
 				}
 				if(curInput&BTN_RIGHT) {
 					// move cur right
 					moveCursor(DIR_RIGHT);
-					Print(0,OVR1, PSTR("Right"));
 				}
 				if(curInput&BTN_UP) {
 					// move cur up
 					moveCursor(DIR_UP);
-					Print(0,OVR1, PSTR("Up"));
 				}
 				if(curInput&BTN_DOWN) {
 					// move cur down
 					moveCursor(DIR_DOWN);
-					Print(0,OVR1, PSTR("DOWN"));
 				}
 				break;
 			case unit_menu:
@@ -306,11 +315,6 @@ void waitGameInput() {
 				
 				break;
 		}
-
-		
-
-		PrintByte(2,OVR2,cursorX,0);
-		PrintByte(2,OVR3, cursorY, 0);
 
 		prevInput = curInput;
 		WaitVsync_(1);
@@ -407,19 +411,32 @@ void redrawUnits() {
 			if(unitList[i].xPos >= cameraX-1 && unitList[i].xPos <= cameraX+MAX_VIS_WIDTH) {
 				// the unit is in our current camera buffer, redraw it
 				DrawMap2(((unitList[i].xPos-cameraX)*2 + vramX)&0x1F, unitList[i].yPos*2, getTileMap(unitList[i].xPos, unitList[i].yPos));
-				PrintByte(10, OVR1, cameraX, 0);
-				PrintByte(10, OVR2, vramX, 0);
+				/*PrintByte(10, OVR1, cameraX, 0);
+				PrintByte(10, OVR2, vramX, 0);*/
 			}
 			v++;
 		}
 	}
-	PrintByte(3, OVR4, v, 0);
+	//PrintByte(3, OVR4, v, 0);
 }
 
 void drawOverlay() {
 
-	// draw the basic overlay
-	// - is the cursor on a unit? display the information
+	// draw the basic panel
+	Fill(1, OVR1, 26, 3, INTERFACE_MID);
+	Fill(0, OVR1, 1, 3, INTERFACE_LEFT);
+	SetTile(0, OVR4, INTERFACE_BL);
+	Fill(1, OVR4, 26, 1, INTERFACE_BOT);
+	SetTile(27, OVR4, INTERFACE_BR);
+	Fill(27, OVR1, 1, 3, INTERFACE_RIGHT);
+
+	// is there a unit here? draw info
+	// TODO: might need conditions for other overlay types, this is preliminary
+	if(levelBuffer[cursorX][cursorY].unit != 0xFF) {
+		struct Unit* unit = &unitList[levelBuffer[cursorX][cursorY].unit];
+		Print(1, OVR1, getUnitName(unit->info));
+		drawHPBar(1, OVR2, unit->hp);
+	}
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
 
@@ -771,7 +788,7 @@ void drawHPBar(unsigned char x, unsigned char y, char val) {
 		val = 56;
 	DrawMap2(x, y, hp_bar_base);
 	x += 2;
-	Fill(x, y, 7, 1, 0);
+	Fill(x, y, 7, 1, INTERFACE_MID);
 	while(val >= 8) {
 		SetTile(x, y, 9);
 		val -= 8;
@@ -802,7 +819,25 @@ void drawHPBar(unsigned char x, unsigned char y, char val) {
 		break;
 	case 0:
 	default:
-		SetTile(x,y,0);
+		SetTile(x,y,INTERFACE_MID);
+	}
+
+}
+
+const char* getUnitName(unsigned char unit) {
+	switch(GETUNIT(unit)) {
+	case UN1:
+		return PSTR("Unit1");
+	case UN2:
+		return PSTR("Unit2");
+	case UN3:
+		return PSTR("Unit3");
+	case UN4:
+		return PSTR("Unit4");
+	case UN5:
+		return PSTR("Unit5");
+	default:
+		ERROR("inv. unit");
 	}
 
 }
