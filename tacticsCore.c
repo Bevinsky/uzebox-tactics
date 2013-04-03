@@ -107,6 +107,12 @@ struct Unit {
 #define INTERFACE_BL 35
 #define INTERFACE_BOT 36
 #define INTERFACE_BR 37
+#define INTERFACE_ARROW 42
+
+//sprite indices
+#define SPRITE_CURSOR 0
+#define SPRITE_ARROW 4
+//#define SPRITE_MOVINGUNIT 5
 
 
 /* globals */
@@ -114,6 +120,8 @@ unsigned char levelWidth, levelHeight;
 unsigned char cursorX, cursorY; // absolute coords
 unsigned char cameraX;
 unsigned char vramX; // where cameraX points to in vram coords, wrapped on 0x1F
+
+unsigned char selectionVar = 0; // generic selection variable
 
 char blinkCounter = 0;
 char blinkState = BLINK_UNITS;
@@ -211,9 +219,12 @@ void main() {
 	loadLevel(testlevel);
 	FadeOut(0, true);
 	drawLevel(LOAD_ALL);
+	drawOverlay();
 	mapCursorSprite(FALSE);
 	MoveSprite(0,0,0,2,2);
 	FadeIn(5, true);
+
+	activePlayer = PL1;
 
 	waitGameInput();
 
@@ -274,7 +285,10 @@ void waitGameInput() {
 					if(levelBuffer[cursorX][cursorY].unit != 0xff && GETPLAY(unitList[levelBuffer[cursorX][cursorY].unit].info) == activePlayer) {
 						// enter select unit mode if there's a unit here and it belongs to us
 						//displayUnitMenu();
+						selectionVar = 0;
+						setBlinkMode(FALSE);
 						controlState = unit_menu;
+
 					}
 				}
 				if(curInput&BTN_X && !(prevInput&BTN_X)) {
@@ -299,7 +313,26 @@ void waitGameInput() {
 				}
 				break;
 			case unit_menu:
-				
+				if(curInput&BTN_X && !(prevInput&BTN_X)) {
+					// toggle blink mode
+					setBlinkMode(!blinkMode);
+				}
+				if(curInput&BTN_B && !(prevInput&BTN_B)) {
+					// leave unit action menu
+					controlState = scrolling;
+				}
+				if(curInput&BTN_UP && !(prevInput&BTN_UP)) {
+					// move selection up
+					if(selectionVar != 0) {
+						selectionVar--;
+					}
+				}
+				if(curInput&BTN_DOWN && !(prevInput&BTN_DOWN)) {
+					// move selection down
+					if(selectionVar != 1) {
+						selectionVar++;
+					}
+				}
 				
 				break;
 				
@@ -439,7 +472,17 @@ void drawOverlay() {
 	}
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
-
+	if(controlState == unit_menu) {
+		SetTile(27-1, OVR2, INTERFACE_TR);
+		SetTile(27-7, OVR2, INTERFACE_TL);
+		SetTile(27-7, OVR3, INTERFACE_BL);
+		SetTile(27-1, OVR3, INTERFACE_BR);
+		Fill(27-6, OVR2, 5, 1, INTERFACE_TOP);
+		Fill(27-6, OVR3, 5, 1, INTERFACE_BOT);
+		DrawMap2(27-5, OVR2, map_attack_text);
+		DrawMap2(27-5, OVR3, map_move_text);
+		SetTile(27-6, OVR2+selectionVar, INTERFACE_ARROW); // this looks ugly but sprites don't work in overlay...
+	}
 
 }
 

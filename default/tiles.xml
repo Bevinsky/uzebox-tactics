@@ -25,6 +25,8 @@
 			<map var-name="map_unit3_blu" left="2" top="10" width="2" height="2" />
 			<map var-name="map_unit4_blu" left="2" top="12" width="2" height="2" />
 			<map var-name="map_unit5_blu" left="2" top="14" width="2" height="2" />
+			<map var-name="map_attack_text" left="11" top="2" width="4" height="1" />
+			<map var-name="map_move_text" left="8" top="3" width="3" height="1" />
 		</maps>
 	</output>
 </gfx-xform>
