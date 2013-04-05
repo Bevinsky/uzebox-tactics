@@ -22,8 +22,6 @@ struct Unit {
     char isUnit;
     char info; // unit type and player bitfield
     char hp;
-    char hasMoved;
-    char hasAttacked;
     unsigned char xPos;
     unsigned char yPos;
 };
@@ -118,16 +116,6 @@ unsigned char activePlayer;
 
 const char* currentLevel;
 
-enum
-{
-	move, attack, wait
-}	menuPointer;
-
-enum
-{
-	scrolling, unit_menu, unit_movement, pause, menu
-}	controlState;
-
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
 struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 
@@ -153,9 +141,6 @@ void waitGameInput();
 void mapCursorSprite(char); // alternate
 void redrawUnits();
 void setBlinkMode(char); // on-off
-void drawUnitMenu(char);
-void clearUnitMenu();
-void moveMenuCursor(char);
 
 void WaitVsync_(char);
 
@@ -222,6 +207,7 @@ void main() {
 		if(cur&BTN_RIGHT)
 			moveCamera(LOAD_RIGHT);
 
+
 		WaitVsync(1);
 	}
 
@@ -233,6 +219,11 @@ void main() {
 		ttt = !ttt;
 
 	}
+
+
+
+
+
 
 	while(1)
 		WaitVsync(1);
@@ -256,137 +247,36 @@ void waitGameInput() {
 		curInput = ReadJoypad(JPPLAY(activePlayer));
 
 		//drawOverlay();
-		
-		switch(controlState) //scrolling, unit_menu, unit_movement, pause, menu
-		{
-			case scrolling:
-				if(curInput&BTN_A && !(prevInput&BTN_A)) {
-					if(levelBuffer[cursorX][cursorY].unit != 0xff && GETPLAY(unitList[levelBuffer[cursorX][cursorY].unit].info) == activePlayer) {
-						// enter selected unit mode if there's a unit here and it belongs to us
-						controlState = unit_menu;
-						
-					}
-				}
-				if(curInput&BTN_X && !(prevInput&BTN_X)) {
-					// toggle blink mode
-					setBlinkMode(!blinkMode);
-				}
-				if(curInput&BTN_LEFT) {
-					// move cur left
-					moveCursor(DIR_LEFT);
-					Print(0,OVR1, PSTR("LEFT"));
-				}
-				if(curInput&BTN_RIGHT) {
-					// move cur right
-					moveCursor(DIR_RIGHT);
-					Print(0,OVR1, PSTR("Right"));
-				}
-				if(curInput&BTN_UP) {
-					// move cur up
-					moveCursor(DIR_UP);
-					Print(0,OVR1, PSTR("Up"));
-				}
-				if(curInput&BTN_DOWN) {
-					// move cur down
-					moveCursor(DIR_DOWN);
-					Print(0,OVR1, PSTR("DOWN"));
-				}
-				break;
-			case unit_menu:
-				drawUnitMenu(levelBuffer[cursorX][cursorY].unit);
-				if(curInput&BTN_A && !(prevInput&BTN_A)) {
-					//select an option (goes into different game state)
-					if(menuPointer == move)	{
-						controlState = unit_movement;
-					}
-					
-					
-				}
-				if(curInput&BTN_B && !(prevInput&BTN_B)) {
-					//exit the menu
-					//clearUnitMenu();
-				}
-				if(curInput&BTN_UP) {
-					//scroll between options
-				}
-				if(curInput&BTN_DOWN) {
-					//scroll between options
-					
-				}
-				
-				break;
-				
-			case unit_movement:
-				if(curInput&BTN_LEFT) {
-					// move cur left
-					moveCursor(DIR_LEFT);
-					Print(0,OVR1, PSTR("LEFT"));
-				}
-				if(curInput&BTN_RIGHT) {
-					// move cur right
-					moveCursor(DIR_RIGHT);
-					Print(0,OVR1, PSTR("Right"));
-				}
-				if(curInput&BTN_UP) {
-					// move cur up
-					moveCursor(DIR_UP);
-					Print(0,OVR1, PSTR("Up"));
-				}
-				if(curInput&BTN_DOWN) {
-					// move cur down
-					moveCursor(DIR_DOWN);
-					Print(0,OVR1, PSTR("DOWN"));
-				}
-				break;
-				
-			case pause:
-				if(curInput&START) {
-					
-				}
-			
-				break;
-				
-			case menu:
-				if(curInput&BTN_LEFT) {
-					// move cur left
-					moveCursor(DIR_LEFT);
-					Print(0,OVR1, PSTR("LEFT"));
-				}
-				if(curInput&BTN_RIGHT) {
-					// move cur right
-					moveCursor(DIR_RIGHT);
-					Print(0,OVR1, PSTR("Right"));
-				}
-				if(curInput&BTN_UP) {
-					// move cur up
-					moveCursor(DIR_UP);
-					Print(0,OVR1, PSTR("Up"));
-				}
-				if(curInput&BTN_DOWN) {
-					// move cur down
-					moveCursor(DIR_DOWN);
-					Print(0,OVR1, PSTR("DOWN"));
-				}
-				if(curInput&BTN_LEFT) {
-					// move cur up
-					moveCursor(DIR_LEFT);
-					Print(0,OVR1, PSTR("LEFT"));
-				}
-				if(curInput&BTN_RIGHT) {
-					// move cur down
-					moveCursor(DIR_RIGHT);
-					Print(0,OVR1, PSTR("RIGHT"));
-				}
-				if(curInput&BTN_A && !(prevInput&BTN_A)) {
-					
-				}
-				if(curInput&BTN_B && !(prevInput&BTN_B)) {
-					
-				}		
-				break;
-		}
 
-		
+		if(curInput&BTN_A && !(prevInput&BTN_A)) {
+			if(levelBuffer[cursorX][cursorY].unit != 0xff && GETPLAY(unitList[levelBuffer[cursorX][cursorY].unit].info) == activePlayer) {
+				// enter select unit mode if there's a unit here and it belongs to us
+			}
+		}
+		if(curInput&BTN_X && !(prevInput&BTN_X)) {
+			// toggle blink mode
+			setBlinkMode(!blinkMode);
+		}
+		if(curInput&BTN_LEFT) {
+			// move cur left
+			moveCursor(DIR_LEFT);
+			Print(0,OVR1, PSTR("LEFT"));
+		}
+		if(curInput&BTN_RIGHT) {
+			// move cur right
+			moveCursor(DIR_RIGHT);
+			Print(0,OVR1, PSTR("Right"));
+		}
+		if(curInput&BTN_UP) {
+			// move cur up
+			moveCursor(DIR_UP);
+			Print(0,OVR1, PSTR("Up"));
+		}
+		if(curInput&BTN_DOWN) {
+			// move cur down
+			moveCursor(DIR_DOWN);
+			Print(0,OVR1, PSTR("DOWN"));
+		}
 
 		PrintByte(2,OVR2,cursorX,0);
 		PrintByte(2,OVR3, cursorY, 0);
@@ -394,28 +284,6 @@ void waitGameInput() {
 		prevInput = curInput;
 		WaitVsync_(1);
 	}
-}
-
-void clearUnitMenu()
-{
-	//do stuff
-}
-
-void drawUnitMenu(char index)
-{
-	clearUnitMenu()
-	if(!unitList(index).hasMoved)
-		Print(8,4,PSTR("Move"));
-	if(!unitList(index).hasAttacked)
-		Print(8,5,PSTR("Attack"));
-	//Print(9,4,PSTR("three"));
-	Print(8,6,PSTR("Wait"));
-}
-
-void moveMenuCursor(char direction)
-{
-	
-	
 }
 
 void loadLevel(const char* level) {
@@ -552,77 +420,76 @@ char moveCamera(char dir) {
 
 char moveCursor(char direction) {
 	char temp;
-	
 	switch(direction) {
-		case DIR_UP:
-			if(cursorY == 0)
-				return FALSE;
-			temp = cursorY*16;
-			while(1) {
-				temp--;
-				MoveSprite(0, (cursorX-cameraX)*16, temp, 2, 2);
-				if(temp % 16 == 0)
-					break;
-				WaitVsync_(1);
+	case DIR_UP:
+		if(cursorY == 0)
+			return FALSE;
+		temp = cursorY*16;
+		while(1) {
+			temp--;
+			MoveSprite(0, (cursorX-cameraX)*16, temp, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorY--;
+		break;
+	case DIR_DOWN:
+		if(cursorY == levelHeight-1)
+			return FALSE;
+		temp = cursorY*16;
+		while(1) {
+			temp++;
+			MoveSprite(0, (cursorX-cameraX)*16, temp, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorY++;
+		break;
+	case DIR_LEFT:
+		if(cursorX == 0)
+			return FALSE;
+		if(cameraX > 0) {
+			if(cursorX-cameraX == 1) { // converts to screen coords
+				// we want to shift the screen, not the cursor itself
+				moveCamera(LOAD_LEFT);
+				cursorX--;
+				break; // don't continue
 			}
-			cursorY--;
-			break;
-		case DIR_DOWN:
-			if(cursorY == levelHeight-1)
-				return FALSE;
-			temp = cursorY*16;
-			while(1) {
-				temp++;
-				MoveSprite(0, (cursorX-cameraX)*16, temp, 2, 2);
-				if(temp % 16 == 0)
-					break;
-				WaitVsync_(1);
+		}
+		// if we don't want to move the screen, we move the cursor!
+		temp = (cursorX-cameraX)*16; // must be relative to screen
+		while(1) {
+			temp--;
+			MoveSprite(0, temp, cursorY*16, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorX--;
+		break;
+	case DIR_RIGHT:
+		if(cursorX == levelWidth-1)
+			return FALSE;
+		if(cameraX < levelWidth-MAX_VIS_WIDTH) {
+			if(cursorX-cameraX == MAX_VIS_WIDTH-2) { // right edge, screen coords
+				moveCamera(LOAD_RIGHT);
+				cursorX++;
+				break;
 			}
-			cursorY++;
-			break;
-		case DIR_LEFT:
-			if(cursorX == 0)
-				return FALSE;
-			if(cameraX > 0) {
-				if(cursorX-cameraX == 1) { // converts to screen coords
-					// we want to shift the screen, not the cursor itself
-					moveCamera(LOAD_LEFT);
-					cursorX--;
-					break; // don't continue
-				}
-			}
-			// if we don't want to move the screen, we move the cursor!
-			temp = (cursorX-cameraX)*16; // must be relative to screen
-			while(1) {
-				temp--;
-				MoveSprite(0, temp, cursorY*16, 2, 2);
-				if(temp % 16 == 0)
-					break;
-				WaitVsync_(1);
-			}
-			cursorX--;
-			break;
-		case DIR_RIGHT:
-			if(cursorX == levelWidth-1)
-				return FALSE;
-			if(cameraX < levelWidth-MAX_VIS_WIDTH) {
-				if(cursorX-cameraX == MAX_VIS_WIDTH-2) { // right edge, screen coords
-					moveCamera(LOAD_RIGHT);
-					cursorX++;
-					break;
-				}
-			}
-			// else, move the cursor
-			temp = (cursorX-cameraX)*16;
-			while(1) {
-				temp++;
-				MoveSprite(0, temp, cursorY*16, 2, 2);
-				if(temp % 16 == 0)
-					break;
-				WaitVsync_(1);
-			}
-			cursorX++;
-			break;
+		}
+		// else, move the cursor
+		temp = (cursorX-cameraX)*16;
+		while(1) {
+			temp++;
+			MoveSprite(0, temp, cursorY*16, 2, 2);
+			if(temp % 16 == 0)
+				break;
+			WaitVsync_(1);
+		}
+		cursorX++;
+		break;
 	}
 	return TRUE;
 }
@@ -639,16 +506,10 @@ void setBlinkMode(char active) {
 //TODO: unit adding (and probably removing) is FLAWED, needs to be redone
 char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	char ret;
-
 	if(levelBuffer[x][y].unit != 0xFF)
 	{
 		ERROR("Unit already in space!");
-		return 0xFF;
-	}
-	else if (unitFirstEmpty == 0xFF)
-	{
-		ERROR("Unit list fulL!");
-		return 0xFF;
+		return 0xff;
 	}
 	else
 	{
@@ -660,8 +521,6 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 		levelBuffer[x][y].unit = unitFirstEmpty;
 		ret = unitFirstEmpty;
 		
-
-		/*
 		for(int i = unitFirstEmpty+1; i < MAX_UNITS-1; i++) //Starting from 1+ the known earliest empty space, search for the next empty space.
 		{
 			if(!unitList[i].isUnit) 
@@ -672,26 +531,8 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 			else if(i == MAX_UNITS-1) //If we reach the end of the units list, the list is full. 
 				unitFirstEmpty = 0xFF;
 		}
-		*/
-		char i = unitFirstEmpty;
-		while(i != unitFirstEmpty - 1)
-		{
-			if(!unitList[i].isUnit)
-			{
-				unitFirstEmpty = i;
-				break;
-			}
-			if(i == MAX_UNITS-1)
-				i = 0;
-			else
-				i++;
-		}
-		
-		if(unitFirstEmpty == ret)
-			unitFirstEmpty = 0xFF;
-		
-		return ret;
 	}
+	return ret;
 }
 
 // TODO: make a function that removes based on index too
@@ -705,8 +546,8 @@ void removeUnit(unsigned char x, unsigned char y) {
 		unitList[levelBuffer[x][y].unit].isUnit = FALSE;
 		//memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
 		
-		//if(unitFirstEmpty > (levelBuffer[x][y].unit + (levelBuffer[x][y].unit < unitFirstEmpty) * MAX_UNITS) ) //If this newly opened index is earlier than the last known index, change it accordingly.
-		unitFirstEmpty = levelBuffer[x][y].unit;
+		if(unitFirstEmpty > levelBuffer[x][y].unit) //If this newly opened index is earlier than the last known index, change it accordingly.
+			unitFirstEmpty = levelBuffer[x][y].unit;
 		levelBuffer[x][y].unit = 0xFF; //Mark this grid buffer square as no unit.
 	}
 }
@@ -847,12 +688,6 @@ void mapCursorSprite(char alt) {
 	sprites[1].flags = SPRITE_FLIP_X;
 	sprites[2].flags = 0;
 	sprites[3].flags = SPRITE_FLIP_X;
-}
-
-void mapMenuSprite(char position)
-{
-	sprites[4].tileindex = 4;
-	
 }
 
 void drawHPBar(unsigned char x, unsigned char y, char val) {
