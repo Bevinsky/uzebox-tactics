@@ -21,7 +21,7 @@ struct GridBufferSquare {
 struct Unit {
     char isUnit;
     char info; // unit type and player bitfield
-    char hp;
+    char info2; // a.bbbbbbb, a=has moved on turn, b=unit hp
     unsigned char xPos;
     unsigned char yPos;
 };
@@ -52,6 +52,17 @@ struct Unit {
 #define TERRAIN_MASK 0b00000111
 #define UNIT_MASK	 0b00111000
 #define OWNER_MASK	 0b11000000
+
+//unit stats masks
+#define HASMOVED_MASK 0b10000000
+#define HP_MASK		  0b01111111
+
+#define HASMOVED(x) ((x)&HASMOVED_MASK)
+#define HP(x) ((x)&HP_MASK)
+// x is an index in the unit list
+#define SETHP(x, y) 		unitList[x].info2 = (unitList[x].info2&0x80)|((y)&0x7F)
+#define SETHASMOVED(x, y)	unitList[x].info2 = (unitList[x].info2&7F)|((y)<<7)
+
 
 // terrain types
 #define PL	0x01 // plain
@@ -147,6 +158,7 @@ struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 unsigned char unitFirstEmpty = 0;
 unsigned char unitListStart = 0;
 unsigned char unitListEnd = 0;
+char lastJumpedUnit = -1;
 
 struct Unit unitList[MAX_UNITS]; //is this enough?
 
@@ -160,7 +172,9 @@ void drawOverlay();
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
 void removeUnit(unsigned char, unsigned char); // x, y
 char moveCamera(char); // direction
+char moveCameraInstant(char); // x
 char moveCursor(char); // direction
+char moveCursorInstant(unsigned char, unsigned char); // x, y
 char isInBufferArea(char, char); // x, y; isInBufferArea
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
 void waitGameInput();
@@ -200,7 +214,7 @@ const char testlevel[] PROGMEM =
 	PL, PL, PL, PL, MO, PL, PL, PL, CT, MO, MO, PL, PL, FO, PL, PL,
 	PL, FO, PL, PL, PL, PL, PL, FO, FO, PL, MO, FO, FO, FO, PL, PL,
 	PL, PL, CT, PL, PL, FO, FO, PL, PL, PL, MO, FO, PL, PL, PL, PL,
-	FO, FO, FO, PL, PL, PL, FO, FO, PL, MO, PL, PL, FO, CT, PL, PL,
+	FO, FO|UN2|PL1, FO, PL, PL, PL, FO, FO, PL, MO, PL, PL, FO, CT, PL, PL|UN3|PL1,
 	PL, MO, MO, FO, MO, PL, PL, PL, FO, BS, PL, MO, MO, MO, MO, PL
 };
 
@@ -273,11 +287,12 @@ void initialize() {
 
 void waitGameInput() {
 	curInput = prevInput = ReadJoypad(JPPLAY(activePlayer));
+	char asd = 0;
 	while(1) {
 		curInput = ReadJoypad(JPPLAY(activePlayer));
 
 		drawOverlay();
-		
+
 		switch(controlState) //scrolling, unit_menu, unit_movement, pause, menu
 		{
 			case scrolling:
@@ -310,6 +325,15 @@ void waitGameInput() {
 				if(curInput&BTN_DOWN) {
 					// move cur down
 					moveCursor(DIR_DOWN);
+				}
+				if(curInput&BTN_Y && !(prevInput&BTN_Y)) {
+					for(char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
+						if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
+							moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
+							lastJumpedUnit = i;
+							break;
+						}
+					}
 				}
 				break;
 			case unit_menu:
@@ -398,12 +422,29 @@ void loadLevel(const char* level) {
 }
 
 void drawLevel(char dir) {
-	char x, y;
+	char x, y, bound;
 	switch(dir){
 	case LOAD_ALL:
+		if(cameraX == 0) {
+			vramX = 0;
+			Screen.scrollX = 0;
+		}
+		else if(cameraX == levelWidth-MAX_VIS_WIDTH) {
+			vramX = 4;
+			Screen.scrollX = 32;
+		}
+		else {
+			vramX = 2;
+			Screen.scrollX = 16;
+		}
 		for(y = 0; y < levelHeight; y++) {
-			for(x = 0; x < levelWidth; x++) {
-				DrawMap2(x*2, y*2, getTileMap(x, y));
+			if(cameraX+MAX_VIS_WIDTH == levelWidth)
+				bound = cameraX+MAX_VIS_WIDTH;
+			else
+				bound = cameraX+MAX_VIS_WIDTH+1;
+
+			for(x = 0; x < levelWidth && x+cameraX < bound; x++) {
+				DrawMap2(vramX+x*2, y*2, getTileMap(x+cameraX, y));
 			}
 		}
 		break;
@@ -468,7 +509,7 @@ void drawOverlay() {
 	if(levelBuffer[cursorX][cursorY].unit != 0xFF) {
 		struct Unit* unit = &unitList[levelBuffer[cursorX][cursorY].unit];
 		Print(1, OVR1, getUnitName(unit->info));
-		drawHPBar(1, OVR2, unit->hp);
+		drawHPBar(1, OVR2, HP(unit->info2));
 	}
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
@@ -483,7 +524,7 @@ void drawOverlay() {
 		DrawMap2(27-5, OVR3, map_move_text);
 		SetTile(27-6, OVR2+selectionVar, INTERFACE_ARROW); // this looks ugly but sprites don't work in overlay...
 	}
-
+	PrintByte(12, OVR3, cameraX,FALSE);
 }
 
 
@@ -526,6 +567,14 @@ char moveCamera(char dir) {
 		ERROR("inv. move");
 	}
 	return TRUE;
+}
+
+char moveCameraInstant(char x) {
+	if(x == cameraX)
+		return TRUE;
+	//vramX = 0;
+	cameraX = x;
+	drawLevel(LOAD_ALL);
 }
 
 char moveCursor(char direction) {
@@ -604,6 +653,26 @@ char moveCursor(char direction) {
 	return TRUE;
 }
 
+char moveCursorInstant(unsigned char x, unsigned char y) {
+	char normalizedCameraX;
+
+	normalizedCameraX = (char)x - MAX_VIS_WIDTH/2;
+	if(normalizedCameraX < 0)
+		normalizedCameraX = 0;
+	if(normalizedCameraX > levelWidth-MAX_VIS_WIDTH)
+		normalizedCameraX = levelWidth-MAX_VIS_WIDTH;
+
+	moveCameraInstant(normalizedCameraX);
+
+	cursorX = x;
+	cursorY = y;
+
+	MoveSprite(0, (cursorX-cameraX)*16, cursorY*16, 2, 2);
+
+
+
+}
+
 void setBlinkMode(char active) {
 	blinkMode = active;
 	blinkCounter = 0;
@@ -630,7 +699,7 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	else
 	{
 		unitList[unitFirstEmpty].isUnit = TRUE;
-		unitList[unitFirstEmpty].hp = 100;
+		SETHP(unitFirstEmpty, 100);
 		unitList[unitFirstEmpty].info = player | type;
 		unitList[unitFirstEmpty].xPos = x;
 		unitList[unitFirstEmpty].yPos = y;
@@ -692,6 +761,11 @@ void removeUnit(unsigned char x, unsigned char y) {
 // gets the tile map for a certain game coordinate
 const char* getTileMap(unsigned char x, unsigned char y) {
 	unsigned char terrain, unitOwner, propertyOwner, unit, displayUnit;
+
+	if(x >= levelWidth || y >= levelHeight) {
+		return map_placeholder;
+	}
+
 	terrain = GETTERR(levelBuffer[x][y].info);
 	if(levelBuffer[x][y].unit != 0xff) {
 		unit = GETUNIT(unitList[levelBuffer[x][y].unit].info);
