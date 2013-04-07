@@ -25,6 +25,10 @@ struct Unit {
     unsigned char xPos;
     unsigned char yPos;
 };
+struct Movement {
+	char direction;
+	char movePoints;
+};
 
 /* defines */
 #define LEVEL_HEIGHT 11
@@ -161,6 +165,9 @@ unsigned char unitListEnd = 0;
 char lastJumpedUnit = -1;
 
 struct Unit unitList[MAX_UNITS]; //is this enough?
+
+struct Movement movementBuffer[10]; // ought to be enough
+char movementPointer = 0;
 
 /* declarations */
 // param1, param2, param3; return
@@ -340,6 +347,10 @@ void waitGameInput() {
 				if(curInput&BTN_X && !(prevInput&BTN_X)) {
 					// toggle blink mode
 					setBlinkMode(!blinkMode);
+				}
+				if(curInput&BTN_A && !(prevInput&BTN_A)) {
+					// do selection
+
 				}
 				if(curInput&BTN_B && !(prevInput&BTN_B)) {
 					// leave unit action menu
