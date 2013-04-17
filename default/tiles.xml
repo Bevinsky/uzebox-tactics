@@ -27,6 +27,17 @@
 			<map var-name="map_unit5_blu" left="2" top="14" width="2" height="2" />
 			<map var-name="map_attack_text" left="11" top="2" width="4" height="1" />
 			<map var-name="map_move_text" left="8" top="3" width="3" height="1" />
+			
+			<map var-name="map_arrow_vert" left="4" top="6" width="2" height="2" />
+			<map var-name="map_arrow_horz" left="6" top="6" width="2" height="2" />
+			<map var-name="map_arrow_tl" left="4" top="8" width="2" height="2" />
+			<map var-name="map_arrow_tr" left="6" top="8" width="2" height="2" />
+			<map var-name="map_arrow_bl" left="4" top="10" width="2" height="2" />
+			<map var-name="map_arrow_br" left="6" top="10" width="2" height="2" />
+			<map var-name="map_arrow_top" left="4" top="12" width="2" height="2" />
+			<map var-name="map_arrow_right" left="6" top="12" width="2" height="2" />
+			<map var-name="map_arrow_down" left="4" top="14" width="2" height="2" />
+			<map var-name="map_arrow_left" left="6" top="14" width="2" height="2" />
 		</maps>
 	</output>
 </gfx-xform>

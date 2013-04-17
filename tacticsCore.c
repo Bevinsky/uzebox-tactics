@@ -123,6 +123,8 @@ struct Movement {
 #define INTERFACE_BOT 36
 #define INTERFACE_BR 37
 #define INTERFACE_ARROW 42
+#define INTERFACE_ARROW_TOP 53
+#define INTERFACE_ARROW_BOT 52
 
 //sprite indices
 #define SPRITE_CURSOR 0
@@ -167,7 +169,8 @@ char lastJumpedUnit = -1;
 struct Unit unitList[MAX_UNITS]; //is this enough?
 
 struct Movement movementBuffer[10]; // ought to be enough
-char movementPointer = 0;
+char movementCount = 0;
+unsigned char movingUnit = 0;
 
 /* declarations */
 // param1, param2, param3; return
@@ -176,6 +179,7 @@ void loadLevel(const char*); // level
 void drawLevel(char); // direction
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
 void drawOverlay();
+void drawArrow();
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
 void removeUnit(unsigned char, unsigned char); // x, y
 char moveCamera(char); // direction
@@ -350,7 +354,18 @@ void waitGameInput() {
 				}
 				if(curInput&BTN_A && !(prevInput&BTN_A)) {
 					// do selection
+					if(selectionVar == 1) { // move
+						controlState = unit_movement;
+						moveCursorInstant(cursorX, cursorY); // just to normalize
+						movingUnit = levelBuffer[cursorX][cursorY].unit;
+					}
+					else if(selectionVar == 0){ // attack
 
+
+					}
+					else {
+						ERROR("inv. sel um.");
+					}
 				}
 				if(curInput&BTN_B && !(prevInput&BTN_B)) {
 					// leave unit action menu
@@ -372,6 +387,61 @@ void waitGameInput() {
 				break;
 				
 			case unit_movement:
+				if(curInput&BTN_LEFT && !(prevInput&BTN_LEFT)) {
+					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_RIGHT) {
+						movementCount--;
+
+					}
+					else if(movementCount < 10) {
+						movementBuffer[movementCount].direction = DIR_LEFT;
+						//moveCursor(DIR_LEFT);
+						movementCount++;
+					}
+				}
+				if(curInput&BTN_RIGHT && !(prevInput&BTN_RIGHT)) {
+					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_LEFT) {
+						movementCount--;
+
+					}
+					else if(movementCount < 10) {
+						movementBuffer[movementCount].direction = DIR_RIGHT;
+						//moveCursor(DIR_RIGHT);
+						movementCount++;
+					}
+				}
+				if(curInput&BTN_UP && !(prevInput&BTN_UP)) {
+					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_DOWN) {
+						movementCount--;
+
+					}
+					else if(movementCount < 10) {
+						movementBuffer[movementCount].direction = DIR_UP;
+						//moveCursor(DIR_UP);
+						movementCount++;
+					}
+				}
+				if(curInput&BTN_DOWN && !(prevInput&BTN_DOWN)) {
+					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_UP) {
+						movementCount--;
+
+					}
+					else if(movementCount < 10) {
+						movementBuffer[movementCount].direction = DIR_DOWN;
+						//moveCursor(DIR_DOWN);
+						movementCount++;
+					}
+				}
+				if(curInput&BTN_B && !(prevInput&BTN_B)) {
+					// leave movement mode
+					controlState = unit_menu;
+					movementCount = 0;
+					drawLevel(LOAD_ALL);
+				}
+				if(curInput&BTN_X && !(prevInput&BTN_X)) {
+					// toggle blink mode
+					setBlinkMode(!blinkMode);
+				}
+
 				
 				break;
 				
@@ -533,9 +603,40 @@ void drawOverlay() {
 		Fill(27-6, OVR3, 5, 1, INTERFACE_BOT);
 		DrawMap2(27-5, OVR2, map_attack_text);
 		DrawMap2(27-5, OVR3, map_move_text);
-		SetTile(27-6, OVR2+selectionVar, INTERFACE_ARROW); // this looks ugly but sprites don't work in overlay...
+		SetTile(27-6, OVR2+selectionVar, selectionVar == 0 ? INTERFACE_ARROW_TOP : INTERFACE_ARROW_BOT); // this looks ugly but sprites don't work in overlay...
 	}
 	PrintByte(12, OVR3, cameraX,FALSE);
+}
+
+void drawArrow() {
+	unsigned char traverseX, traverseY, traverseI;
+	traverseX = unitList[movingUnit].xPos;
+	traverseY = unitList[movingUnit].yPos;
+	for(traverseI = 0;traverseI < movementCount+1;traverseI++) {
+		switch(movementBuffer[traverseI].direction) {
+		case DIR_UP:
+			traverseY--;
+			break;
+		case DIR_DOWN:
+			traverseY++;
+			break;
+		case DIR_LEFT:
+			traverseX--;
+			break;
+		case DIR_RIGHT:
+			traverseX++;
+			break;
+		}
+
+		if(traverseX >= levelWidth || traverseY >= levelHeight)
+			continue;
+
+		DrawMap2(((traverseX-cameraX)*2 + vramX)&0x1F, traverseY*2, getTileMap(traverseX, traverseY));
+		PrintByte(12, OVR1, movementCount, 0);
+	}
+
+
+
 }
 
 
@@ -808,7 +909,80 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 		}
 	}
 
+	if(!(blinkMode && blinkState == BLINK_TERRAIN)) {
+		if(controlState == unit_movement) {
+			unsigned char traverseX, traverseY, traverseI;
+			traverseX = unitList[movingUnit].xPos;
+			traverseY = unitList[movingUnit].yPos;
+			for(traverseI = 0;traverseI < movementCount;traverseI++) {
+				switch(movementBuffer[traverseI].direction) {
+				case DIR_UP:
+					traverseY--;
+					break;
+				case DIR_DOWN:
+					traverseY++;
+					break;
+				case DIR_LEFT:
+					traverseX--;
+					break;
+				case DIR_RIGHT:
+					traverseX++;
+					break;
+				}
 
+				if(x == traverseX && y == traverseY) {
+					char curDirection, nextDirection;
+					if(traverseI+1 == movementCount) { // we've reached the end, draw a stub
+						switch(movementBuffer[traverseI].direction) {
+						case DIR_UP:
+							return map_arrow_top;
+						case DIR_DOWN:
+							return map_arrow_down;
+						case DIR_LEFT:
+							return map_arrow_left;
+						case DIR_RIGHT:
+							return map_arrow_right;
+						}
+					}
+
+					curDirection = movementBuffer[traverseI].direction;
+					nextDirection = movementBuffer[traverseI+1].direction;
+
+					if(curDirection == nextDirection) { // they're the same, it's a vert or horz
+						switch(curDirection) {
+						case DIR_UP:
+						case DIR_DOWN:
+							return map_arrow_vert;
+						case DIR_LEFT:
+						case DIR_RIGHT:
+							return map_arrow_horz;
+						}
+
+					}
+					else { // it's a corner
+						if((curDirection == DIR_UP && nextDirection == DIR_LEFT) ||
+						   (curDirection == DIR_RIGHT && nextDirection == DIR_DOWN))
+							return map_arrow_tr;
+						if((curDirection == DIR_UP && nextDirection == DIR_RIGHT) ||
+						   (curDirection == DIR_LEFT && nextDirection == DIR_DOWN))
+							return map_arrow_tl;
+						if((curDirection == DIR_DOWN && nextDirection == DIR_LEFT) ||
+						   (curDirection == DIR_RIGHT && nextDirection == DIR_UP))
+							return map_arrow_br;
+						if((curDirection == DIR_DOWN && nextDirection == DIR_RIGHT) ||
+						   (curDirection == DIR_LEFT && nextDirection == DIR_UP))
+							return map_arrow_bl;
+					}
+
+					return map_placeholder;
+				}
+
+			}
+
+
+
+		}
+	}
 
 
 	if(displayUnit) {
@@ -975,7 +1149,7 @@ void WaitVsync_(char count) {
 	// call this instead of WaitVsync to make sure that periodicals
 	// get called even if we are doing something function-locked
 	while(count > 0) {
-		WaitVsync(1); // wait only once
+
 
 		// insert periodicals here
 		//TODO: make sure the correct periodicals only fire when they are supposed to
@@ -986,7 +1160,11 @@ void WaitVsync_(char count) {
 		}
 		cursorCounter++;
 
-		//checkBlinkState();
+		if(controlState == unit_movement) {
+			drawArrow();
+		}
+
+
 
 		if(blinkMode) {
 			if(blinkCounter >= 30) {
@@ -1003,7 +1181,7 @@ void WaitVsync_(char count) {
 
 
 
-
+		WaitVsync(1); // wait only once
 		count--;
 	}
 
