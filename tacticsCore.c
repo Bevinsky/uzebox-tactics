@@ -171,6 +171,7 @@ struct Unit unitList[MAX_UNITS]; //is this enough?
 struct Movement movementBuffer[10]; // ought to be enough
 char movementCount = 0;
 unsigned char movingUnit = 0;
+unsigned char arrowX = 0, arrowY = 0;
 
 /* declarations */
 // param1, param2, param3; return
@@ -186,7 +187,7 @@ char moveCamera(char); // direction
 char moveCameraInstant(char); // x
 char moveCursor(char); // direction
 char moveCursorInstant(unsigned char, unsigned char); // x, y
-char isInBufferArea(char, char); // x, y; isInBufferArea
+char validArrowTile(unsigned char, unsigned char); // x, y, hasArrow
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
 void waitGameInput();
 void mapCursorSprite(char); // alternate
@@ -221,7 +222,7 @@ const char testlevel[] PROGMEM =
 	PL, BS|PL1, PL, MO, PL, PL, FO, FO, PL, FO, FO, PL, PL, MO, MO, PL,
 	PL, FO|UN1|PL1, PL, MO, PL, PL, PL, FO, PL, PL, FO, PL, FO, PL, PL, PL,
 	PL, PL, MO, MO, PL, MO, MO, FO, PL, PL, PL, FO, PL, FO, PL, PL,
-	PL, FO, PL, MO, PL, MO, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+	PL, FO, PL|UN1|PL1, MO, PL, MO, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
 	PL, PL, PL, PL, MO, PL, PL, PL, CT, MO, MO, PL, PL, FO, PL, PL,
 	PL, FO, PL, PL, PL, PL, PL, FO, FO, PL, MO, FO, FO, FO, PL, PL,
 	PL, PL, CT, PL, PL, FO, FO, PL, PL, PL, MO, FO, PL, PL, PL, PL,
@@ -358,6 +359,8 @@ void waitGameInput() {
 						controlState = unit_movement;
 						moveCursorInstant(cursorX, cursorY); // just to normalize
 						movingUnit = levelBuffer[cursorX][cursorY].unit;
+						arrowX = unitList[movingUnit].xPos;
+						arrowY = unitList[movingUnit].yPos;
 					}
 					else if(selectionVar == 0){ // attack
 
@@ -390,45 +393,45 @@ void waitGameInput() {
 				if(curInput&BTN_LEFT && !(prevInput&BTN_LEFT)) {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_RIGHT) {
 						movementCount--;
-
+						arrowX--;
 					}
-					else if(movementCount < 10) {
+					else if(movementCount < 10 && validArrowTile(arrowX-1, arrowY)) {
 						movementBuffer[movementCount].direction = DIR_LEFT;
-						//moveCursor(DIR_LEFT);
 						movementCount++;
+						arrowX--;
 					}
 				}
 				if(curInput&BTN_RIGHT && !(prevInput&BTN_RIGHT)) {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_LEFT) {
 						movementCount--;
-
+						arrowX++;
 					}
-					else if(movementCount < 10) {
+					else if(movementCount < 10 && validArrowTile(arrowX+1, arrowY)) {
 						movementBuffer[movementCount].direction = DIR_RIGHT;
-						//moveCursor(DIR_RIGHT);
 						movementCount++;
+						arrowX++;
 					}
 				}
 				if(curInput&BTN_UP && !(prevInput&BTN_UP)) {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_DOWN) {
 						movementCount--;
-
+						arrowY--;
 					}
-					else if(movementCount < 10) {
+					else if(movementCount < 10 && validArrowTile(arrowX, arrowY-1)) {
 						movementBuffer[movementCount].direction = DIR_UP;
-						//moveCursor(DIR_UP);
 						movementCount++;
+						arrowY--;
 					}
 				}
 				if(curInput&BTN_DOWN && !(prevInput&BTN_DOWN)) {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_UP) {
 						movementCount--;
-
+						arrowY++;
 					}
-					else if(movementCount < 10) {
+					else if(movementCount < 10 && validArrowTile(arrowX, arrowY+1)) {
 						movementBuffer[movementCount].direction = DIR_DOWN;
-						//moveCursor(DIR_DOWN);
 						movementCount++;
+						arrowY++;
 					}
 				}
 				if(curInput&BTN_B && !(prevInput&BTN_B)) {
@@ -783,6 +786,41 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 
 
 
+}
+
+char validArrowTile(unsigned char x, unsigned char y) {
+	unsigned char traverseX, traverseY, traverseI;
+
+	if(x >= levelWidth || y >= levelHeight) {
+		return FALSE;
+	}
+
+	if(levelBuffer[x][y].unit != 0xFF) {
+		return FALSE;
+	}
+
+	traverseX = unitList[movingUnit].xPos;
+	traverseY = unitList[movingUnit].yPos;
+	for(traverseI = 0;traverseI < movementCount;traverseI++) {
+		switch(movementBuffer[traverseI].direction) {
+		case DIR_UP:
+			traverseY--;
+			break;
+		case DIR_DOWN:
+			traverseY++;
+			break;
+		case DIR_LEFT:
+			traverseX--;
+			break;
+		case DIR_RIGHT:
+			traverseX++;
+			break;
+		}
+
+		if(x == traverseX && y == traverseY)
+			return FALSE;
+	}
+	return TRUE;
 }
 
 void setBlinkMode(char active) {
