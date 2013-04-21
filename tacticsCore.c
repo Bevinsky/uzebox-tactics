@@ -1214,6 +1214,11 @@ const char* getUnitName(unsigned char unit) {
 char getNeededMovePoints(const char unit, const char terrain) {
 	//oh god save me please
 	switch(unit|terrain) {
+		case UN1|BS:
+		case UN2|BS:
+		case UN4|BS:
+		case UN5|BS:
+			return 1;
 		case UN1|PL:
 		case UN2|PL:
 		case UN4|PL:
@@ -1222,6 +1227,7 @@ char getNeededMovePoints(const char unit, const char terrain) {
 		case UN1|CT:
 		case UN4|CT:
 		case UN5|CT:
+		case UN3|BS:
 			return 2;
 		case UN1|FO:
 		case UN3|PL:
