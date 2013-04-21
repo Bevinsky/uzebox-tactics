@@ -21,7 +21,8 @@ struct GridBufferSquare {
 struct Unit {
     char isUnit;
     char info; // unit type and player bitfield
-    char info2; // a.bbbbbbb, a=has moved on turn, b=unit hp
+    char hp;
+    char other; // xxxxxx.ba, a=moved on turn, b=attacked on turn
     unsigned char xPos;
     unsigned char yPos;
 };
@@ -58,15 +59,16 @@ struct Movement {
 #define OWNER_MASK	 0b11000000
 
 //unit stats masks
-#define HASMOVED_MASK 0b10000000
-#define HP_MASK		  0b01111111
+#define HASMOVED_MASK 0b00000001
+#define HASATTACKED_MASK 0b00000010
 
 #define HASMOVED(x) ((x)&HASMOVED_MASK)
-#define HP(x) ((x)&HP_MASK)
+#define HASATTACKED(x) ((x)&HASATTACKED_MASK)
 // x is an index in the unit list
-#define SETHP(x, y) 		unitList[x].info2 = (unitList[x].info2&0x80)|((y)&0x7F)
-#define SETHASMOVED(x, y)	unitList[x].info2 = (unitList[x].info2&7F)|((y)<<7)
+#define SETHASMOVED(x, y)	unitList[x].other = (unitList[x].other&FE)|((y))
+#define SETHASATTACKED(x, y)	unitList[x].other = (unitList[x].other&FD)|((y))
 
+#define MAX_UNIT_MP 10
 
 // terrain types
 #define PL	0x01 // plain
@@ -170,6 +172,7 @@ struct Unit unitList[MAX_UNITS]; //is this enough?
 
 struct Movement movementBuffer[10]; // ought to be enough
 char movementCount = 0;
+char movementPoints = 0;
 unsigned char movingUnit = 0;
 unsigned char arrowX = 0, arrowY = 0;
 
@@ -194,6 +197,7 @@ void mapCursorSprite(char); // alternate
 void redrawUnits();
 void setBlinkMode(char); // on-off
 const char* getUnitName(unsigned char); // unit; unitName
+char getNeededMovePoints(const char unit, const char terrain);
 
 void WaitVsync_(char);
 
@@ -340,6 +344,7 @@ void waitGameInput() {
 				}
 				if(curInput&BTN_Y && !(prevInput&BTN_Y)) {
 					for(char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
+						//TODO: make this only jump to not moved or attacked units
 						if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
 							moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
 							lastJumpedUnit = i;
@@ -357,6 +362,7 @@ void waitGameInput() {
 					// do selection
 					if(selectionVar == 1) { // move
 						controlState = unit_movement;
+						movementPoints = 10;
 						moveCursorInstant(cursorX, cursorY); // just to normalize
 						movingUnit = levelBuffer[cursorX][cursorY].unit;
 						arrowX = unitList[movingUnit].xPos;
@@ -394,9 +400,12 @@ void waitGameInput() {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_RIGHT) {
 						movementCount--;
 						arrowX--;
+						movementPoints += movementBuffer[movementCount].movePoints;
 					}
 					else if(movementCount < 10 && validArrowTile(arrowX-1, arrowY)) {
 						movementBuffer[movementCount].direction = DIR_LEFT;
+						movementBuffer[movementCount].movePoints = getNeededMovePoints(GETUNIT(unitList[movingUnit].info), GETTERR(levelBuffer[arrowX-1][arrowY].info));
+						movementPoints -= movementBuffer[movementCount].movePoints;
 						movementCount++;
 						arrowX--;
 					}
@@ -405,9 +414,12 @@ void waitGameInput() {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_LEFT) {
 						movementCount--;
 						arrowX++;
+						movementPoints += movementBuffer[movementCount].movePoints;
 					}
 					else if(movementCount < 10 && validArrowTile(arrowX+1, arrowY)) {
 						movementBuffer[movementCount].direction = DIR_RIGHT;
+						movementBuffer[movementCount].movePoints = getNeededMovePoints(GETUNIT(unitList[movingUnit].info), GETTERR(levelBuffer[arrowX+1][arrowY].info));
+						movementPoints -= movementBuffer[movementCount].movePoints;
 						movementCount++;
 						arrowX++;
 					}
@@ -416,9 +428,12 @@ void waitGameInput() {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_DOWN) {
 						movementCount--;
 						arrowY--;
+						movementPoints += movementBuffer[movementCount].movePoints;
 					}
 					else if(movementCount < 10 && validArrowTile(arrowX, arrowY-1)) {
 						movementBuffer[movementCount].direction = DIR_UP;
+						movementBuffer[movementCount].movePoints = getNeededMovePoints(GETUNIT(unitList[movingUnit].info), GETTERR(levelBuffer[arrowX][arrowY-1].info));
+						movementPoints -= movementBuffer[movementCount].movePoints;
 						movementCount++;
 						arrowY--;
 					}
@@ -427,9 +442,12 @@ void waitGameInput() {
 					if(movementCount > 0 && movementBuffer[movementCount-1].direction == DIR_UP) {
 						movementCount--;
 						arrowY++;
+						movementPoints += movementBuffer[movementCount].movePoints;
 					}
 					else if(movementCount < 10 && validArrowTile(arrowX, arrowY+1)) {
 						movementBuffer[movementCount].direction = DIR_DOWN;
+						movementBuffer[movementCount].movePoints = getNeededMovePoints(GETUNIT(unitList[movingUnit].info), GETTERR(levelBuffer[arrowX][arrowY+1].info));
+						movementPoints -= movementBuffer[movementCount].movePoints;
 						movementCount++;
 						arrowY++;
 					}
@@ -593,7 +611,7 @@ void drawOverlay() {
 	if(levelBuffer[cursorX][cursorY].unit != 0xFF) {
 		struct Unit* unit = &unitList[levelBuffer[cursorX][cursorY].unit];
 		Print(1, OVR1, getUnitName(unit->info));
-		drawHPBar(1, OVR2, HP(unit->info2));
+		drawHPBar(1, OVR2, unit->hp);
 	}
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
@@ -607,6 +625,10 @@ void drawOverlay() {
 		DrawMap2(27-5, OVR2, map_attack_text);
 		DrawMap2(27-5, OVR3, map_move_text);
 		SetTile(27-6, OVR2+selectionVar, selectionVar == 0 ? INTERFACE_ARROW_TOP : INTERFACE_ARROW_BOT); // this looks ugly but sprites don't work in overlay...
+	}
+	if(controlState == unit_movement) {
+		PrintByte(17, OVR2, movementPoints, 0);
+
 	}
 	PrintByte(12, OVR3, cameraX,FALSE);
 }
@@ -791,11 +813,18 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 char validArrowTile(unsigned char x, unsigned char y) {
 	unsigned char traverseX, traverseY, traverseI;
 
+	// can't be outside the level
 	if(x >= levelWidth || y >= levelHeight) {
 		return FALSE;
 	}
 
+	// can't have a unit
 	if(levelBuffer[x][y].unit != 0xFF) {
+		return FALSE;
+	}
+
+	// not enough points
+	if(movementPoints - getNeededMovePoints(GETUNIT(unitList[movingUnit].info), GETTERR(levelBuffer[x][y].info)) < 0) {
 		return FALSE;
 	}
 
@@ -849,7 +878,7 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	else
 	{
 		unitList[unitFirstEmpty].isUnit = TRUE;
-		SETHP(unitFirstEmpty, 100);
+		unitList[unitFirstEmpty].hp = 100;
 		unitList[unitFirstEmpty].info = player | type;
 		unitList[unitFirstEmpty].xPos = x;
 		unitList[unitFirstEmpty].yPos = y;
@@ -1167,19 +1196,54 @@ void drawHPBar(unsigned char x, unsigned char y, char val) {
 const char* getUnitName(unsigned char unit) {
 	switch(GETUNIT(unit)) {
 	case UN1:
-		return PSTR("Unit1");
+		return PSTR("Infantry");
 	case UN2:
-		return PSTR("Unit2");
+		return PSTR("Tank");
 	case UN3:
-		return PSTR("Unit3");
+		return PSTR("Mortar");
 	case UN4:
-		return PSTR("Unit4");
+		return PSTR("Mercenary");
 	case UN5:
-		return PSTR("Unit5");
+		return PSTR("Rocket");
 	default:
 		ERROR("inv. unit");
 	}
 
+}
+
+char getNeededMovePoints(const char unit, const char terrain) {
+	//oh god save me please
+	switch(unit|terrain) {
+		case UN1|PL:
+		case UN2|PL:
+		case UN4|PL:
+		case UN5|PL:
+		case UN4|FO:
+		case UN1|CT:
+		case UN4|CT:
+		case UN5|CT:
+			return 2;
+		case UN1|FO:
+		case UN3|PL:
+		case UN5|FO:
+		case UN2|CT:
+		case UN3|CT:
+			return 3;
+		case UN2|FO:
+			return 4;
+		case UN3|FO:
+			return 5;
+		case UN4|MO:
+		case UN5|MO:
+			return 7;
+		case UN1|MO:
+			return 8;
+		case UN2|MO:
+		case UN3|MO:
+			return 11;
+		default:
+			ERROR("gnmp");
+	}
 }
 
 void WaitVsync_(char count) {

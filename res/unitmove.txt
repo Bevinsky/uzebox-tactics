@@ -1,0 +1,22 @@
+Unit movement point table
+Starting points is 10 for all units
+
+
+U1 = Infantry		
+U2 = Tank			
+U3 = Mortar		
+U4 = Mercenary		
+U5 = Rocket			
+
+
+	PL  FO  MO  CT  BS
+
+U1	2	3	8	2	1
+
+U2	2	4	11	3	1
+
+U3	3	5	11	3	2
+
+U4	2	2	7	2	1
+
+U5	2	3	7	2	1
