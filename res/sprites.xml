@@ -3,5 +3,17 @@
 	<input file="sprites.png" type="png" tile-width="8" tile-height="8" />
 	<output file="sprites.inc">
 		<tiles var-name="spriteTiles"/>
+		<maps pointers-size="8">
+			<map var-name="sprite_unit1_red" left="0" top="1" width="2" height="2" />
+			<map var-name="sprite_unit2_red" left="0" top="3" width="2" height="2" />
+			<map var-name="sprite_unit3_red" left="0" top="5" width="2" height="2" />
+			<map var-name="sprite_unit4_red" left="0" top="7" width="2" height="2" />
+			<map var-name="sprite_unit5_red" left="0" top="9" width="2" height="2" />
+			<map var-name="sprite_unit1_blu" left="2" top="1" width="2" height="2" />
+			<map var-name="sprite_unit2_blu" left="2" top="3" width="2" height="2" />
+			<map var-name="sprite_unit3_blu" left="2" top="5" width="2" height="2" />
+			<map var-name="sprite_unit4_blu" left="2" top="7" width="2" height="2" />
+			<map var-name="sprite_unit5_blu" left="2" top="9" width="2" height="2" />
+		</maps>
 	</output>
 </gfx-xform>

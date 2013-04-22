@@ -65,8 +65,8 @@ struct Movement {
 #define HASMOVED(x) ((x)&HASMOVED_MASK)
 #define HASATTACKED(x) ((x)&HASATTACKED_MASK)
 // x is an index in the unit list
-#define SETHASMOVED(x, y)	unitList[x].other = (unitList[x].other&FE)|((y))
-#define SETHASATTACKED(x, y)	unitList[x].other = (unitList[x].other&FD)|((y))
+#define SETHASMOVED(x, y)	unitList[x].other = (unitList[x].other&0xFE)|((y))
+#define SETHASATTACKED(x, y)	unitList[x].other = (unitList[x].other&0xFD)|((y)<<1)
 
 #define MAX_UNIT_MP 10
 
@@ -127,6 +127,8 @@ struct Movement {
 #define INTERFACE_ARROW 42
 #define INTERFACE_ARROW_TOP 53
 #define INTERFACE_ARROW_BOT 52
+#define INTERFACE_GLIGHT 55
+#define INTERFACE_RLIGHT 54
 
 //sprite indices
 #define SPRITE_CURSOR 0
@@ -157,7 +159,7 @@ const char* currentLevel;
 
 enum
 {
-	scrolling, unit_menu, unit_movement, pause, menu
+	scrolling, unit_menu, unit_movement, unit_moving, pause, menu
 }	controlState;
 
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
@@ -186,6 +188,7 @@ void drawOverlay();
 void drawArrow();
 char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
 void removeUnit(unsigned char, unsigned char); // x, y
+void moveUnit();
 char moveCamera(char); // direction
 char moveCameraInstant(char); // x
 char moveCursor(char); // direction
@@ -194,6 +197,8 @@ char validArrowTile(unsigned char, unsigned char); // x, y, hasArrow
 const char* getTileMap(unsigned char, unsigned char); // x, y; tileMap
 void waitGameInput();
 void mapCursorSprite(char); // alternate
+void mapMovingUnitSprite();
+void tweenUnitSprite(char, char, char, char);
 void redrawUnits();
 void setBlinkMode(char); // on-off
 const char* getUnitName(unsigned char); // unit; unitName
@@ -317,7 +322,7 @@ void waitGameInput() {
 						// enter select unit mode if there's a unit here and it belongs to us
 						//displayUnitMenu();
 						selectionVar = 0;
-						setBlinkMode(FALSE);
+						//setBlinkMode(FALSE);
 						controlState = unit_menu;
 
 					}
@@ -461,6 +466,17 @@ void waitGameInput() {
 				if(curInput&BTN_X && !(prevInput&BTN_X)) {
 					// toggle blink mode
 					setBlinkMode(!blinkMode);
+				}
+				if(curInput&BTN_A && !(prevInput&BTN_A)) {
+					// move unit!
+					controlState = unit_moving;
+					drawLevel(LOAD_ALL);
+					moveUnit();
+					moveCursorInstant(unitList[movingUnit].xPos, unitList[movingUnit].yPos);
+					controlState = scrolling;
+					movementCount = 0;
+					drawLevel(LOAD_ALL);
+					SETHASMOVED(movingUnit, TRUE);
 				}
 
 				
@@ -612,6 +628,16 @@ void drawOverlay() {
 		struct Unit* unit = &unitList[levelBuffer[cursorX][cursorY].unit];
 		Print(1, OVR1, getUnitName(unit->info));
 		drawHPBar(1, OVR2, unit->hp);
+		Print(1, OVR3, PSTR("MOV"));
+		Print(6, OVR3, PSTR("ATK"));
+		if(HASMOVED(unit->info))
+			SetTile(4, OVR3, INTERFACE_RLIGHT);
+		else
+			SetTile(4, OVR3, INTERFACE_GLIGHT);
+		if(HASATTACKED(unit->info))
+			SetTile(9, OVR3, INTERFACE_RLIGHT);
+		else
+			SetTile(9, OVR3, INTERFACE_GLIGHT);
 	}
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
@@ -810,6 +836,78 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 
 }
 
+void moveUnit() {
+	char traverseX, traverseY, traverseI;
+	char newX, newY;
+
+	mapMovingUnitSprite();
+
+	traverseX = unitList[movingUnit].xPos;
+	traverseY = unitList[movingUnit].yPos;
+	for(traverseI = 0;traverseI < movementCount; traverseI++) {
+		switch(movementBuffer[traverseI].direction) {
+		case DIR_UP:
+			newX = traverseX;
+			newY = traverseY-1;
+			break;
+		case DIR_DOWN:
+			newX = traverseX;
+			newY = traverseY+1;
+			break;
+		case DIR_LEFT:
+			newX = traverseX-1;
+			newY = traverseY;
+			break;
+		case DIR_RIGHT:
+			newX = traverseX+1;
+			newY = traverseY;
+			break;
+		}
+
+		tweenUnitSprite(traverseX, traverseY, newX, newY);
+		traverseX = newX;
+		traverseY = newY;
+	}
+
+	//newX and newY will be the final coords
+	levelBuffer[unitList[movingUnit].xPos][unitList[movingUnit].yPos].unit = 0xFF;
+	unitList[movingUnit].xPos = newX;
+	unitList[movingUnit].yPos = newY;
+	levelBuffer[unitList[movingUnit].xPos][unitList[movingUnit].yPos].unit = movingUnit;
+	MoveSprite(4, -16, 0, 2, 2);
+}
+
+void tweenUnitSprite(char sx, char sy, char dx, char dy) {
+	char xdir, ydir, tween;
+
+	xdir = dx - sx;
+	ydir = dy - sy;
+
+	sx = (sx - cameraX) * 16;
+	sy = sy * 16;
+	dx = (dx - cameraX) * 16;
+	dy = dy * 16;
+
+	if(xdir != 0) {
+		tween = sx;
+		while(tween != dx) {
+			tween += xdir;
+			MoveSprite(4, tween, dy, 2, 2);
+			WaitVsync_(3);
+		}
+	}
+	else if(ydir != 0) {
+		tween = sy;
+		while(tween != dy) {
+			tween += ydir;
+			MoveSprite(4, dx, tween, 2, 2);
+			WaitVsync_(3);
+		}
+	}
+
+
+}
+
 char validArrowTile(unsigned char x, unsigned char y) {
 	unsigned char traverseX, traverseY, traverseI;
 
@@ -974,6 +1072,12 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 			// is this correct?
 			displayUnit = FALSE;
 		}
+	}
+
+	if(controlState == unit_moving && levelBuffer[x][y].unit == movingUnit) {
+		// if this tile has the moving unit on it, don't draw it as a tile
+		// (draw it as a sprite instead)
+		displayUnit = FALSE;
 	}
 
 	if(!(blinkMode && blinkState == BLINK_TERRAIN)) {
@@ -1150,6 +1254,49 @@ void mapCursorSprite(char alt) {
 	sprites[1].flags = SPRITE_FLIP_X;
 	sprites[2].flags = 0;
 	sprites[3].flags = SPRITE_FLIP_X;
+}
+
+void mapMovingUnitSprite() {
+	const char* map;
+	switch(GETUNIT(unitList[movingUnit].info)|GETPLAY(unitList[movingUnit].info))  {
+	case PL1|UN1:
+		map = sprite_unit1_red;
+		break;
+	case PL1|UN2:
+		map = sprite_unit2_red;
+		break;
+	case PL1|UN3:
+		map = sprite_unit3_red;
+		break;
+	case PL1|UN4:
+		map = sprite_unit4_red;
+		break;
+	case PL1|UN5:
+		map = sprite_unit5_red;
+		break;
+	case PL2|UN1:
+		map = sprite_unit1_blu;
+		break;
+	case PL2|UN2:
+		map = sprite_unit2_blu;
+		break;
+	case PL2|UN3:
+		map = sprite_unit3_blu;
+		break;
+	case PL2|UN4:
+		map = sprite_unit4_blu;
+		break;
+	case PL2|UN5:
+		map = sprite_unit5_blu;
+		break;
+	default:
+		ERROR("inv. mmsp")
+	}
+
+	MapSprite(4, map);
+	MoveSprite(4,(cursorX-cameraX)*16, cursorY*16, 2, 2);
+
+
 }
 
 void drawHPBar(unsigned char x, unsigned char y, char val) {
