@@ -40,6 +40,8 @@ struct Movement {
 #define TRUE 1
 #define FALSE 0
 
+#define EEPROM_INDEX 833
+
 #define BLINK_UNITS 0
 #define BLINK_TERRAIN 1
 
@@ -144,6 +146,8 @@ unsigned char vramX; // where cameraX points to in vram coords, wrapped on 0x1F
 
 unsigned char selectionVar = 0; // generic selection variable
 
+struct EepromBlockStruct eepromData;
+
 char blinkCounter = 0;
 char blinkState = BLINK_UNITS;
 char blinkMode = FALSE;
@@ -203,6 +207,8 @@ void redrawUnits();
 void setBlinkMode(char); // on-off
 const char* getUnitName(unsigned char); // unit; unitName
 char getNeededMovePoints(const char unit, const char terrain);
+char getRandomNumber(); // ; rand
+void saveEeprom();
 
 void WaitVsync_(char);
 
@@ -304,6 +310,11 @@ void initialize() {
 	SetFontTilesIndex(TERRAINTILES_SIZE);
 	SetTileTable(terrainTiles);
 	SetSpritesTileTable(spriteTiles);
+
+	eepromData.id = EEPROM_INDEX;
+	if(!isEepromFormatted() || EepromReadBlock(EEPROM_INDEX, &eepromData)) {
+		// no idea what to do here...
+	}
 }
 
 void waitGameInput() {
@@ -658,7 +669,7 @@ void drawOverlay() {
 		PrintByte(17, OVR2, movementPoints, 0);
 
 	}
-	PrintByte(12, OVR3, cameraX,FALSE);
+	//PrintByte(12, OVR3, getRandomNumber(),FALSE);
 }
 
 void drawArrow() {
@@ -1399,6 +1410,30 @@ char getNeededMovePoints(const char unit, const char terrain) {
 		default:
 			ERROR("gnmp");
 	}
+}
+
+char getRandomNumber() {
+	unsigned char lo, hi, xor, save;
+
+	lo = (unsigned char)eepromData.data[0];
+	hi = (unsigned char)eepromData.data[1];
+
+	if(!hi && !lo)
+		lo = 0x31; // some good normal value
+
+	xor =  lo&1;
+	xor ^= (lo>>2)&1;
+	xor ^= (lo>>3)&1;
+	xor ^= (lo>>5)&1;
+
+	save = hi&1;
+	hi = ((hi>>1)&0x7F)|(xor<<7);
+	lo = ((lo>>1)&0x7F)|(save<<7);
+
+	eepromData.data[0] = (char)lo;
+	eepromData.data[1] = (char)hi;
+
+	return (char)lo;
 }
 
 void WaitVsync_(char count) {
