@@ -366,12 +366,14 @@ void waitGameInput() {
 				if(curInput&BTN_A && !(prevInput&BTN_A)) {
 					// do selection
 					if(selectionVar == 1) { // move
-						controlState = unit_movement;
-						movementPoints = 10;
-						moveCursorInstant(cursorX, cursorY); // just to normalize
-						movingUnit = levelBuffer[cursorX][cursorY].unit;
-						arrowX = unitList[movingUnit].xPos;
-						arrowY = unitList[movingUnit].yPos;
+						if(!HASMOVED(unitList[levelBuffer[cursorX][cursorY].unit].other)) {
+							controlState = unit_movement;
+							movementPoints = 10;
+							moveCursorInstant(cursorX, cursorY); // just to normalize
+							movingUnit = levelBuffer[cursorX][cursorY].unit;
+							arrowX = unitList[movingUnit].xPos;
+							arrowY = unitList[movingUnit].yPos;
+						}
 					}
 					else if(selectionVar == 0){ // attack
 
@@ -630,11 +632,11 @@ void drawOverlay() {
 		drawHPBar(1, OVR2, unit->hp);
 		Print(1, OVR3, PSTR("MOV"));
 		Print(6, OVR3, PSTR("ATK"));
-		if(HASMOVED(unit->info))
+		if(HASMOVED(unit->other))
 			SetTile(4, OVR3, INTERFACE_RLIGHT);
 		else
 			SetTile(4, OVR3, INTERFACE_GLIGHT);
-		if(HASATTACKED(unit->info))
+		if(HASATTACKED(unit->other))
 			SetTile(9, OVR3, INTERFACE_RLIGHT);
 		else
 			SetTile(9, OVR3, INTERFACE_GLIGHT);
