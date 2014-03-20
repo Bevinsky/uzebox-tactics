@@ -46,6 +46,8 @@ struct Movement {
 #define BLINK_TERRAIN 1
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define ABS(a) ((a) < 0 ? -(a) : (a))
+#define MANH(x1, y1, x2, y2) (ABS((x1)-(x2)) + ABS((y1)-(y2)))
 
 #define ERROR(msg) \
 	Print(4,0,PSTR(msg));\
@@ -207,7 +209,9 @@ void redrawUnits();
 void setBlinkMode(char); // on-off
 const char* getUnitName(unsigned char); // unit; unitName
 char getNeededMovePoints(const char unit, const char terrain);
+char getAttackRange(const char unit);
 char getRandomNumber(); // ; rand
+char getRandomNumberLimit(char); // max; rand
 void saveEeprom();
 
 void WaitVsync_(char);
@@ -268,7 +272,6 @@ void main() {
 	activePlayer = PL1;
 
 	waitGameInput();
-
 
 	while(1) {
 		int cur = ReadJoypad(0);
@@ -482,14 +485,19 @@ void waitGameInput() {
 				}
 				if(curInput&BTN_A && !(prevInput&BTN_A)) {
 					// move unit!
-					controlState = unit_moving;
-					drawLevel(LOAD_ALL);
-					moveUnit();
-					moveCursorInstant(unitList[movingUnit].xPos, unitList[movingUnit].yPos);
-					controlState = scrolling;
-					movementCount = 0;
-					drawLevel(LOAD_ALL);
-					SETHASMOVED(movingUnit, TRUE);
+					if(movementCount > 0) {
+						controlState = unit_moving;
+						drawLevel(LOAD_ALL);
+						moveUnit();
+						moveCursorInstant(unitList[movingUnit].xPos, unitList[movingUnit].yPos);
+						controlState = scrolling;
+						movementCount = 0;
+						drawLevel(LOAD_ALL);
+						SETHASMOVED(movingUnit, TRUE);
+					}
+					else {
+						// some error bleep
+					}
 				}
 
 				
@@ -1410,6 +1418,132 @@ char getNeededMovePoints(const char unit, const char terrain) {
 		default:
 			ERROR("gnmp");
 	}
+}
+
+char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
+	char baseDamage;
+
+
+	// get base damage (unit -> unit)
+	switch(GETUNIT(srcUnit->info)) {
+	case UN1:
+		switch(GETUNIT(dstUnit->info)) {
+		case UN2:
+		case UN3:
+			baseDamage = 15;
+			break;
+		case UN1:
+		case UN4:
+			baseDamage = 25;
+			break;
+		case UN5:
+			baseDamage = 35;
+			break;
+		}
+		break;
+	case UN2:
+		switch(GETUNIT(dstUnit->info)) {
+		case UN4:
+		case UN5:
+			baseDamage = 15;
+			break;
+		case UN1:
+		case UN3:
+			baseDamage = 25;
+			break;
+		case UN2:
+			baseDamage = 35;
+			break;
+		}
+		break;
+	case UN3:
+		switch(GETUNIT(dstUnit->info)) {
+		case UN1:
+		case UN5:
+			baseDamage = 15;
+			break;
+		case UN3:
+		case UN4:
+			baseDamage = 25;
+			break;
+		case UN2:
+			baseDamage = 35;
+			break;
+		}
+		break;
+	case UN4:
+		switch(GETUNIT(dstUnit->info)) {
+		case UN4:
+			baseDamage = 15;
+			break;
+		case UN2:
+		case UN3:
+			baseDamage = 25;
+			break;
+		case UN1:
+		case UN5:
+			baseDamage = 35;
+			break;
+		}
+		break;
+	case UN5:
+		switch(GETUNIT(dstUnit->info)) {
+		case UN1:
+		case UN4:
+		case UN5:
+			baseDamage = 15;
+			break;
+		case UN2:
+		case UN3:
+			baseDamage = 35;
+			break;
+		}
+		break;
+	}
+
+	// get random boost (0-10 extra)
+	baseDamage += getRandomNumberLimit(10);
+
+	//terrain resistance
+	switch(GETTERR(levelBuffer[dstUnit->xPos][dstUnit->yPos].info)) {
+	case BS:
+		baseDamage -= 10;
+		break;
+	case MO:
+		baseDamage -= 8;
+		break;
+	case FO:
+	case CT:
+		baseDamage -= 5;
+		break;
+	}
+	if(baseDamage <= 0)
+		baseDamage = 1;
+
+	return baseDamage;
+}
+
+char getAttackRange(const char unit) {
+	switch(GETUNIT(unit)) {
+	case UN1:
+	case UN2:
+	case UN4:
+		return 1;
+	case UN5:
+		return 2;
+	case UN3:
+		return 3;
+	default:
+		ERROR("inv. u ar");
+	}
+	return 1;
+}
+
+char getRandomNumberLimit(char max) {
+	char a = getRandomNumber();
+	if(a < 0)
+		a = -a;
+	return a % (max+1);
 }
 
 char getRandomNumber() {

@@ -10,6 +10,8 @@ TARGET = $(GAME).elf
 CC = avr-gcc
 INFO=../gameinfo.properties
 
+GCONVERT = gconvert
+
 ## Kernel settings
 KERNEL_DIR = ../../kernel/kernel
 KERNEL_OPTIONS  = -DVIDEO_MODE=3 -DINTRO_LOGO=1 -DSOUND_CHANNEL_4_ENABLE=0 -DSCROLLING=1 -DSOUND_MIXER=1
@@ -56,9 +58,12 @@ LINKONLYOBJECTS =
 INCLUDES = -I"$(KERNEL_DIR)" 
 
 ## Build
-all: $(TARGET) $(GAME).hex $(GAME).eep $(GAME).lss $(GAME).uze size
+all:  $(TARGET) $(GAME).hex $(GAME).eep $(GAME).lss $(GAME).uze size
 
 ## Rebuild graphics ressource
+
+#graphics:
+#	(cd ../res; $(GCONVERT) *.xml)
 
 ## Compile Kernel files
 uzeboxVideoEngineCore.o: $(KERNEL_DIR)/uzeboxVideoEngineCore.s
