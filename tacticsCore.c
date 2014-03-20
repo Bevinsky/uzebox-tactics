@@ -165,7 +165,7 @@ const char* currentLevel;
 
 enum
 {
-	scrolling, unit_menu, unit_movement, unit_moving, pause, menu
+	scrolling, unit_menu, unit_movement, unit_moving, unit_attack, pause, menu
 }	controlState;
 
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
@@ -183,6 +183,8 @@ char movementCount = 0;
 char movementPoints = 0;
 unsigned char movingUnit = 0;
 unsigned char arrowX = 0, arrowY = 0;
+
+char attackingUnit = 0;
 
 /* declarations */
 // param1, param2, param3; return
@@ -390,8 +392,11 @@ void waitGameInput() {
 						}
 					}
 					else if(selectionVar == 0){ // attack
-
-
+						if(!HASATTACKED(unitList[levelBuffer[cursorX][cursorY].unit].other)) {
+							controlState = unit_attack;
+							moveCursorInstant(cursorX, cursorY);
+							attackingUnit = levelBuffer[cursorX][cursorY].unit;
+						}
 					}
 					else {
 						ERROR("inv. sel um.");
@@ -1054,7 +1059,28 @@ void removeUnit(unsigned char x, unsigned char y) {
 		levelBuffer[x][y].unit = 0xFF; //Mark this grid buffer square as no unit.
 	}
 }
-		
+
+char getNextAttackableUnitIndex(char last) {
+	int i = last+1;
+	char range = getAttackRange(unitList[attackingUnit].info);
+	char player = activePlayer == PL1 ? PL2 : PL1; // reverse the player
+	if(last == -1) {
+		i = 0;
+		last = MAX_UNITS-1;
+	}
+
+	for(; i != last; i++) {
+		if(i >= MAX_UNITS)
+			i = 0;
+
+		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == player && MANH(unitList[i].xPos, unitList[i].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range) {
+			// if the unit belongs to the other player and is inside our attack range
+			return i;
+		}
+	}
+	return 0xFF;
+}
+
 
 // gets the tile map for a certain game coordinate
 const char* getTileMap(unsigned char x, unsigned char y) {
@@ -1076,7 +1102,6 @@ const char* getTileMap(unsigned char x, unsigned char y) {
 	propertyOwner = GETPLAY(levelBuffer[x][y].info); // this should be 0 if there is no owner
 
 	if(unit) { // if we have a unit to display, display it!
-		// TODO: add exceptions for when we are moving a unit with sprites
 		displayUnit = TRUE;
 	}
 	else {
@@ -1507,15 +1532,20 @@ char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
 	//terrain resistance
 	switch(GETTERR(levelBuffer[dstUnit->xPos][dstUnit->yPos].info)) {
 	case BS:
-		baseDamage -= 10;
+		if(GETUNIT(srcUnit->info) == UN3)
+			baseDamage -= 5; // mortar vs base
+		else
+			baseDamage -= 10;
 		break;
 	case MO:
 		baseDamage -= 8;
 		break;
 	case FO:
-	case CT:
 		baseDamage -= 5;
 		break;
+	case CT:
+		if(GETUNIT(srcUnit->info) != UN3)
+			baseDamage -= 5;
 	}
 	if(baseDamage <= 0)
 		baseDamage = 1;
