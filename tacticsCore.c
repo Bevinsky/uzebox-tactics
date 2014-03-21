@@ -137,6 +137,10 @@ struct Movement {
 //sprite indices
 #define SPRITE_CURSOR 0
 #define SPRITE_ARROW 4
+#define SPRITE_EXPLOSION 5
+
+#define SPRITE_POS_EXPL1 4
+#define SPRITE_POS_EXPL2 5
 //#define SPRITE_MOVINGUNIT 5
 
 
@@ -184,7 +188,8 @@ char movementPoints = 0;
 unsigned char movingUnit = 0;
 unsigned char arrowX = 0, arrowY = 0;
 
-char attackingUnit = 0;
+unsigned char attackingUnit = 0;
+unsigned char attackedUnit = 0;
 
 /* declarations */
 // param1, param2, param3; return
@@ -212,8 +217,10 @@ void setBlinkMode(char); // on-off
 const char* getUnitName(unsigned char); // unit; unitName
 char getNeededMovePoints(const char unit, const char terrain);
 char getAttackRange(const char unit);
+char getDamage(struct Unit* srcUnit, struct Unit* dstUnit);
 char getRandomNumber(); // ; rand
 char getRandomNumberLimit(char); // max; rand
+unsigned char getNextAttackableUnitIndex(unsigned char last, char dir);
 void saveEeprom();
 
 void WaitVsync_(char);
@@ -241,14 +248,14 @@ const char testlevel[] PROGMEM =
 	PL, FO, PL, PL, PL, PL, PL, PL, PL, MO, MO, PL, MO, PL, PL, MO,
 	PL, PL, MO, MO, MO, MO, BS, PL, PL, CT, MO, FO, PL, PL|UN1|PL2, BS|PL2, PL,
 	PL, BS|PL1, PL, MO, PL, PL, FO, FO, PL, FO, FO, PL, PL, MO, MO, PL,
-	PL, FO|UN1|PL1, PL, MO, PL, PL, PL, FO, PL, PL, FO, PL, FO, PL, PL, PL,
-	PL, PL, MO, MO, PL, MO, MO, FO, PL, PL, PL, FO, PL, FO, PL, PL,
-	PL, FO, PL|UN1|PL1, MO, PL, MO, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
+	PL|UN3|PL2, FO|UN1|PL1, PL|UN5|PL2, MO, PL, PL, PL, FO, PL, PL, FO, PL, FO, PL, PL, PL,
+	PL, PL|UN2|PL2, MO, MO, PL, MO, MO, FO, PL, PL, PL, FO, PL, FO, PL, PL,
+	PL, FO, PL|UN4|PL1, MO, PL, MO, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL,
 	PL, PL, PL, PL, MO, PL, PL, PL, CT, MO, MO, PL, PL, FO, PL, PL,
-	PL, FO, PL, PL, PL, PL, PL, FO, FO, PL, MO, FO, FO, FO, PL, PL,
+	PL, FO, PL, PL, PL|UN2|PL2, PL|UN4|PL1, PL, FO, FO, PL, MO, FO, FO, FO, PL|UN4|PL2, PL|UN2|PL2,
 	PL, PL, CT, PL, PL, FO, FO, PL, PL, PL, MO, FO, PL, PL, PL, PL,
-	FO, FO|UN2|PL1, FO, PL, PL, PL, FO, FO, PL, MO, PL, PL, FO, CT, PL, PL|UN3|PL1,
-	PL, MO, MO, FO, MO, PL, PL, PL, FO, BS, PL, MO, MO, MO, MO, PL
+	FO, FO|UN2|PL1, FO, PL, PL, PL, FO, FO, PL, MO, PL, PL, FO, CT|UN1|PL2, PL, PL|UN3|PL1,
+	PL, MO, MO, FO|UN1|PL2, MO, PL, PL, PL, FO, BS, PL, MO, MO, MO, MO, PL
 };
 
 const char shortlevel[] PROGMEM =
@@ -325,6 +332,7 @@ void initialize() {
 void waitGameInput() {
 	curInput = prevInput = ReadJoypad(JPPLAY(activePlayer));
 	char asd = 0;
+	char tmpUnit = 0;
 	while(1) {
 		curInput = ReadJoypad(JPPLAY(activePlayer));
 
@@ -393,9 +401,14 @@ void waitGameInput() {
 					}
 					else if(selectionVar == 0){ // attack
 						if(!HASATTACKED(unitList[levelBuffer[cursorX][cursorY].unit].other)) {
-							controlState = unit_attack;
-							moveCursorInstant(cursorX, cursorY);
 							attackingUnit = levelBuffer[cursorX][cursorY].unit;
+							attackedUnit = getNextAttackableUnitIndex(-1, 1);
+							if(attackedUnit != 0xFF) {
+								controlState = unit_attack;
+								cursorX = unitList[attackedUnit].xPos;
+								cursorY = unitList[attackedUnit].yPos;
+								moveCursorInstant(cursorX, cursorY);
+							}
 						}
 					}
 					else {
@@ -506,6 +519,43 @@ void waitGameInput() {
 				}
 
 				
+				break;
+			case unit_attack:
+				if(curInput&BTN_UP && !(prevInput&BTN_UP)) {
+					attackedUnit = getNextAttackableUnitIndex(attackedUnit, -1);
+					cursorX = unitList[attackedUnit].xPos;
+					cursorY = unitList[attackedUnit].yPos;
+					moveCursorInstant(cursorX, cursorY);
+				}
+				if(curInput&BTN_DOWN && !(prevInput&BTN_DOWN)) {
+					attackedUnit = getNextAttackableUnitIndex(attackedUnit, 1);
+					cursorX = unitList[attackedUnit].xPos;
+					cursorY = unitList[attackedUnit].yPos;
+					moveCursorInstant(cursorX, cursorY);
+				}
+				if(curInput&BTN_X && !(prevInput&BTN_X)) {
+					// toggle blink mode
+					setBlinkMode(!blinkMode);
+				}
+				if(curInput&BTN_B && !(prevInput&BTN_B)) {
+					// leave attack mode
+					controlState = unit_menu;
+					movementCount = 0;
+					cursorX = unitList[attackingUnit].xPos;
+					cursorY = unitList[attackingUnit].yPos;
+					moveCursorInstant(cursorX, cursorY);
+					drawLevel(LOAD_ALL);
+				}
+
+				if(curInput&BTN_A && !(prevInput&BTN_A)) {
+					attackUnit();
+					SETHASATTACKED(attackingUnit, TRUE);
+					moveCursorInstant(unitList[attackingUnit].xPos, unitList[attackingUnit].yPos);
+					controlState = scrolling;
+				}
+
+
+
 				break;
 				
 			case pause:
@@ -654,16 +704,20 @@ void drawOverlay() {
 		struct Unit* unit = &unitList[levelBuffer[cursorX][cursorY].unit];
 		Print(1, OVR1, getUnitName(unit->info));
 		drawHPBar(1, OVR2, unit->hp);
-		Print(1, OVR3, PSTR("MOV"));
-		Print(6, OVR3, PSTR("ATK"));
-		if(HASMOVED(unit->other))
-			SetTile(4, OVR3, INTERFACE_RLIGHT);
-		else
-			SetTile(4, OVR3, INTERFACE_GLIGHT);
-		if(HASATTACKED(unit->other))
-			SetTile(9, OVR3, INTERFACE_RLIGHT);
-		else
-			SetTile(9, OVR3, INTERFACE_GLIGHT);
+
+		if(GETPLAY(unit->info) == activePlayer) {
+			Print(1, OVR3, PSTR("MOV"));
+			Print(6, OVR3, PSTR("ATK"));
+
+			if(HASMOVED(unit->other))
+				SetTile(4, OVR3, INTERFACE_RLIGHT);
+			else
+				SetTile(4, OVR3, INTERFACE_GLIGHT);
+			if(HASATTACKED(unit->other))
+				SetTile(9, OVR3, INTERFACE_RLIGHT);
+			else
+				SetTile(9, OVR3, INTERFACE_GLIGHT);
+		}
 	}
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
@@ -680,6 +734,10 @@ void drawOverlay() {
 	}
 	if(controlState == unit_movement) {
 		PrintByte(17, OVR2, movementPoints, 0);
+
+	}
+	if(controlState == unit_attack) {
+		PrintByte(17, OVR2, attackedUnit, 0);
 
 	}
 	//PrintByte(12, OVR3, getRandomNumber(),FALSE);
@@ -859,6 +917,79 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 	MoveSprite(0, (cursorX-cameraX)*16, cursorY*16, 2, 2);
 
 
+
+}
+
+void attackUnit() {
+	MoveSprite(0, 0xE0, 0, 2, 2);
+//	PrintHexByte(11, OVR2, sprites[SPRITE_POS_EXPL1].y);
+//	while(1);
+	sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION;
+	sprites[SPRITE_POS_EXPL1].x = 0xE0;
+	sprites[SPRITE_POS_EXPL1].y = 0;
+
+	sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION;
+	sprites[SPRITE_POS_EXPL2].flags = SPRITE_FLIP_X;
+	sprites[SPRITE_POS_EXPL2].x = 0xE0;
+	sprites[SPRITE_POS_EXPL2].y = 0;
+
+	char cycles = 0;
+	char ex1_start = (getRandomNumberLimit(4) + 1) * 3; // random half-cycle between 1 and 5
+	char ex2_start = ex1_start + (getRandomNumberLimit(7) + 3) * 3;
+	char max_cycles = ex2_start + 20 * 3;
+
+	while(cycles < max_cycles) {
+		if(cycles == ex1_start) {
+			sprites[SPRITE_POS_EXPL1].x = (cursorX-cameraX)*16 + getRandomNumberLimit(5) + 1;
+			sprites[SPRITE_POS_EXPL1].y = cursorY*16 + getRandomNumberLimit(4) + 1;
+		}
+		if(cycles == ex2_start) {
+			sprites[SPRITE_POS_EXPL2].x = (cursorX-cameraX)*16 + getRandomNumberLimit(5) + 1;
+			sprites[SPRITE_POS_EXPL2].y = cursorY*16 + getRandomNumberLimit(3) + 8;
+		}
+		if(cycles > ex1_start && cycles < ex1_start+60) {
+			sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION+(cycles-ex1_start)/6;
+		}
+		if(cycles > ex2_start && cycles < ex2_start+60) {
+			sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION+(cycles-ex2_start)/6;
+		}
+
+		WaitVsync_(3);
+		cycles += 3;
+	}
+
+	// hide sprites
+	sprites[SPRITE_POS_EXPL1].x = 0xE0;
+	sprites[SPRITE_POS_EXPL1].y = 0;
+	sprites[SPRITE_POS_EXPL2].x = 0xE0;
+	sprites[SPRITE_POS_EXPL2].y = 0;
+
+	// animate hp bar
+
+	cycles = 0;
+
+	char damage = getDamage(&unitList[attackingUnit], &unitList[attackedUnit]);
+
+
+	while(1) {
+		unitList[attackedUnit].hp -= 1;
+		damage--;
+
+		drawOverlay();
+		PrintByte(17, OVR3, damage, 0);
+
+		if(damage == 0 || unitList[attackedUnit].hp == 0) {
+			break;
+		}
+		WaitVsync_(6);
+		cycles += 6;
+	}
+
+	if(unitList[attackedUnit].hp == 0) {
+		// do something
+	}
+
+	WaitVsync_(60);
 
 }
 
@@ -1060,24 +1191,33 @@ void removeUnit(unsigned char x, unsigned char y) {
 	}
 }
 
-char getNextAttackableUnitIndex(char last) {
-	int i = last+1;
+unsigned char getNextAttackableUnitIndex(unsigned char last, char dir) {
+	char i = last+dir;
+	char count = 0;
 	char range = getAttackRange(unitList[attackingUnit].info);
 	char player = activePlayer == PL1 ? PL2 : PL1; // reverse the player
 	if(last == -1) {
 		i = 0;
 		last = MAX_UNITS-1;
+		dir = 1;
 	}
 
-	for(; i != last; i++) {
+	for(; count < MAX_UNITS; i += dir, count++) {
 		if(i >= MAX_UNITS)
 			i = 0;
+		if(i < 0)
+			i = MAX_UNITS-1;
 
 		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == player && MANH(unitList[i].xPos, unitList[i].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range) {
 			// if the unit belongs to the other player and is inside our attack range
 			return i;
 		}
 	}
+	if(unitList[last].isUnit && GETPLAY(unitList[last].info) == player && MANH(unitList[last].xPos, unitList[last].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range) {
+		// if the unit belongs to the other player and is inside our attack range
+		return last;
+	}
+
 	return 0xFF;
 }
 
@@ -1340,14 +1480,17 @@ void mapMovingUnitSprite() {
 	}
 
 	MapSprite(4, map);
+	sprites[4].flags = 0;
+	sprites[5].flags = 0;
+	sprites[6].flags = 0;
+	sprites[7].flags = 0;
 	MoveSprite(4,(cursorX-cameraX)*16, cursorY*16, 2, 2);
 
 
 }
 
 void drawHPBar(unsigned char x, unsigned char y, char val) {
-	if(val > 56)
-		val = 56;
+	val = val >> 1;
 	DrawMap2(x, y, hp_bar_base);
 	x += 2;
 	Fill(x, y, 7, 1, INTERFACE_MID);
