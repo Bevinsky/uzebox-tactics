@@ -1,0 +1,31 @@
+Left: attacker, top: Defender
+
+			Inf.  Tan.  Mor.  Mer.  Roc.
+Infantry	Me    Lo    Lo    Me    Hi 
+                                          
+Tank		Me    Hi    Me    Lo    Lo                         
+                                          
+Mortar		Lo    Hi    Me    Me    Lo       
+                                            
+Mercenary	Hi    Me    Me    Lo    Hi
+                                          
+Rocket		Lo    Hi    Hi    Lo    Lo      
+
+
+
+Infantry: 	9/11
+Tank:		9/8
+Mortar:		9/10
+Mercenary	11/13
+Rocket:		9/11
+
+
+Infantry strong against:
+  Rocket
+  Mercenary Infantry
+  Tank Mortar
+Infantry weak against:
+  Mercenary
+  Infantry Tank
+  Mortar Rocket
+  

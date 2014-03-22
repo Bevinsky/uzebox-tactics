@@ -50,9 +50,9 @@ struct Movement {
 #define MANH(x1, y1, x2, y2) (ABS((x1)-(x2)) + ABS((y1)-(y2)))
 
 #define ERROR(msg) \
-	Print(4,0,PSTR(msg));\
+	{Print(4,4,PSTR(msg));\
 	while(1)\
-		WaitVsync(1);
+		WaitVsync(1);}
 
 // convert our player value to controller value
 #define JPPLAY(pl) ((pl) == PL2 ? 1 : 0)
@@ -169,7 +169,7 @@ const char* currentLevel;
 
 enum
 {
-	scrolling, unit_menu, unit_movement, unit_moving, unit_attack, pause, menu
+	scrolling, unit_menu, unit_movement, unit_moving, unit_attack, end_turn, pause, menu
 }	controlState;
 
 // what is visible on the screen; 14 wide, 11 high, 2 loading columns on each side
@@ -199,7 +199,8 @@ void drawLevel(char); // direction
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
 void drawOverlay();
 void drawArrow();
-char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
+unsigned char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
+void removeUnitByIndex(unsigned char); // index
 void removeUnit(unsigned char, unsigned char); // x, y
 void moveUnit();
 char moveCamera(char); // direction
@@ -241,6 +242,8 @@ void WaitVsync_(char);
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO,
     PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, PL, FO, MO
 };*/
+
+//const char testlevel[] PROGMEM = {};
 
 const char testlevel[] PROGMEM =
 {
@@ -380,6 +383,18 @@ void waitGameInput() {
 							break;
 						}
 					}
+				}
+				if(curInput&BTN_SELECT && !(prevInput&BTN_SELECT)) {
+					// open end turn menu
+					controlState = end_turn;
+					selectionVar = 0;
+
+					MoveSprite(0, 224, 0, 2, 2);
+					drawTwoSelMenu(PSTR("End turn?"), PSTR("Yes"), PSTR("No"));
+//
+//
+//					DrawMap2((vramX+5)%0x1F, 5, INTERFACE_TR)
+
 				}
 				break;
 			case unit_menu:
@@ -549,7 +564,7 @@ void waitGameInput() {
 
 				if(curInput&BTN_A && !(prevInput&BTN_A)) {
 					attackUnit();
-					SETHASATTACKED(attackingUnit, TRUE);
+					//SETHASATTACKED(attackingUnit, TRUE);
 					moveCursorInstant(unitList[attackingUnit].xPos, unitList[attackingUnit].yPos);
 					controlState = scrolling;
 				}
@@ -557,7 +572,29 @@ void waitGameInput() {
 
 
 				break;
-				
+			case end_turn:
+				if((curInput&BTN_SELECT && !(prevInput&BTN_SELECT)) || (curInput&BTN_B && !(prevInput&BTN_B))) {
+					// open end turn menu
+					controlState = scrolling;
+					moveCursorInstant(cursorX, cursorY);
+					drawLevel(LOAD_ALL);
+				}
+				if((curInput&BTN_UP && !(prevInput&BTN_UP)) || (curInput&BTN_DOWN && !(prevInput&BTN_DOWN))) {
+					selectionVar = !selectionVar;
+					drawTwoSelMenu(PSTR("End turn?"), PSTR("Yes"), PSTR("No"));
+				}
+				if(curInput&BTN_A && !(prevInput&BTN_A)) {
+					if(selectionVar == 0) { // end turn
+						endTurn();
+						//?
+					}
+					else{
+						controlState = scrolling;
+						moveCursorInstant(cursorX, cursorY);
+						drawLevel(LOAD_ALL);
+					}
+				}
+				break;
 			case pause:
 			
 				break;
@@ -570,6 +607,21 @@ void waitGameInput() {
 		prevInput = curInput;
 		WaitVsync_(1);
 	}
+}
+
+void endTurn() {
+	setBlinkMode(FALSE);
+	drawLevel(LOAD_ALL);
+	activePlayer = activePlayer == PL1 ? PL2 : PL1;
+
+	// reset markers on units
+
+
+	// heal units on bases&cities
+
+
+	// money 'n shit
+
 }
 
 void displayUnitMenu()
@@ -774,6 +826,27 @@ void drawArrow() {
 
 }
 
+void drawTwoSelMenu(const char* prompt, const char* sel1, const char* sel2) {
+
+	Fill((vramX+5)%0x1F,	 5, 12, 5, INTERFACE_MID);
+	SetTile((vramX+5)%0x1F,	 5, INTERFACE_TL);
+	Fill((vramX+5)%0x1F, 6, 1, 3, INTERFACE_LEFT);
+	SetTile((vramX+5)%0x1F, 9, INTERFACE_BL);
+	Fill((vramX+5+1)%0x1F, 9, 10, 1, INTERFACE_BOT);
+	SetTile((vramX+5+11)%0x1F, 9, INTERFACE_BR);
+	Fill((vramX+5+11)%0x1F, 6, 1, 3, INTERFACE_RIGHT);
+	SetTile((vramX+5+11)%0x1F, 5, INTERFACE_TR);
+	Fill((vramX+5+1)%0x1F, 5, 10, 1, INTERFACE_TOP);
+
+	Print((vramX+5+1)%0x1F, 6, prompt);
+
+	Print((vramX+5+4)%0x1F, 7, sel1);
+	Print((vramX+5+4)%0x1F, 8, sel2);
+
+	SetTile((vramX+5+3)%0x1F, 7+selectionVar, INTERFACE_ARROW);
+
+}
+
 
 char moveCamera(char dir) {
 	switch(dir) {
@@ -940,11 +1013,11 @@ void attackUnit() {
 
 	while(cycles < max_cycles) {
 		if(cycles == ex1_start) {
-			sprites[SPRITE_POS_EXPL1].x = (cursorX-cameraX)*16 + getRandomNumberLimit(5) + 1;
-			sprites[SPRITE_POS_EXPL1].y = cursorY*16 + getRandomNumberLimit(4) + 1;
+			sprites[SPRITE_POS_EXPL1].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10);
+			sprites[SPRITE_POS_EXPL1].y = cursorY*16 + getRandomNumberLimit(2) + 1;
 		}
 		if(cycles == ex2_start) {
-			sprites[SPRITE_POS_EXPL2].x = (cursorX-cameraX)*16 + getRandomNumberLimit(5) + 1;
+			sprites[SPRITE_POS_EXPL2].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10) + 1;
 			sprites[SPRITE_POS_EXPL2].y = cursorY*16 + getRandomNumberLimit(3) + 8;
 		}
 		if(cycles > ex1_start && cycles < ex1_start+60) {
@@ -976,7 +1049,6 @@ void attackUnit() {
 		damage--;
 
 		drawOverlay();
-		PrintByte(17, OVR3, damage, 0);
 
 		if(damage == 0 || unitList[attackedUnit].hp == 0) {
 			break;
@@ -985,8 +1057,11 @@ void attackUnit() {
 		cycles += 6;
 	}
 
-	if(unitList[attackedUnit].hp == 0) {
-		// do something
+	if(unitList[attackedUnit].hp <= 0) {
+		// less than just to be sure
+		removeUnitByIndex(attackedUnit);
+		drawLevel(LOAD_ALL);
+		drawOverlay();
 	}
 
 	WaitVsync_(60);
@@ -1050,7 +1125,7 @@ void tweenUnitSprite(char sx, char sy, char dx, char dy) {
 		while(tween != dx) {
 			tween += xdir;
 			MoveSprite(4, tween, dy, 2, 2);
-			WaitVsync_(3);
+			WaitVsync_(2);
 		}
 	}
 	else if(ydir != 0) {
@@ -1058,7 +1133,7 @@ void tweenUnitSprite(char sx, char sy, char dx, char dy) {
 		while(tween != dy) {
 			tween += ydir;
 			MoveSprite(4, dx, tween, 2, 2);
-			WaitVsync_(3);
+			WaitVsync_(2);
 		}
 	}
 
@@ -1117,17 +1192,17 @@ void setBlinkMode(char active) {
 
 //TODO: MAX units *per* team, not total units
 //TODO: unit adding (and probably removing) is FLAWED, needs to be redone
-char addUnit(unsigned char x, unsigned char y, char player, char type) {
+unsigned char addUnit(unsigned char x, unsigned char y, char player, char type) {
 	char ret;
 
 	if(levelBuffer[x][y].unit != 0xFF)
 	{
-		ERROR("Unit already in space!");
+		//ERROR("Unit already in space!");
 		return 0xFF;
 	}
 	else if (unitFirstEmpty == 0xFF)
 	{
-		ERROR("Unit list fulL!");
+		//ERROR("Unit list fulL!");
 		return 0xFF;
 	}
 	else
@@ -1153,42 +1228,44 @@ char addUnit(unsigned char x, unsigned char y, char player, char type) {
 				unitFirstEmpty = 0xFF;
 		}
 		*/
-		char i = unitFirstEmpty;
-		while(i != unitFirstEmpty - 1)
-		{
-			if(!unitList[i].isUnit)
-			{
+
+		for(unsigned char i = unitFirstEmpty; ;) {
+			if(!unitList[i].isUnit) {
 				unitFirstEmpty = i;
 				break;
 			}
-			if(i == MAX_UNITS-1)
-				i = 0;
-			else
-				i++;
+
+			i = (i+1)%MAX_UNITS;
+			if(i == unitFirstEmpty) {
+				unitFirstEmpty = 0xFF;
+				break;
+			}
 		}
-		
-		if(unitFirstEmpty == ret)
-			unitFirstEmpty = 0xFF;
 		
 		return ret;
 	}
 }
 
-// TODO: make a function that removes based on index too
 void removeUnit(unsigned char x, unsigned char y) {
 	if(levelBuffer[x][y].unit == 0xFF)
-	{
-		ERROR("No unit in that space");
-	}
-	else
-	{
-		unitList[levelBuffer[x][y].unit].isUnit = FALSE;
-		//memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
-		
-		//if(unitFirstEmpty > (levelBuffer[x][y].unit + (levelBuffer[x][y].unit < unitFirstEmpty) * MAX_UNITS) ) //If this newly opened index is earlier than the last known index, change it accordingly.
-		unitFirstEmpty = levelBuffer[x][y].unit;
-		levelBuffer[x][y].unit = 0xFF; //Mark this grid buffer square as no unit.
-	}
+		ERROR("ru");
+
+	unitList[levelBuffer[x][y].unit].isUnit = FALSE;
+	//memset(&unitList[levelBuffer[x][y].unit], sizeof(unitList[levelBuffer[x][y].unit]), 0); //Zero out the unit struct.
+
+	//if(unitFirstEmpty > (levelBuffer[x][y].unit + (levelBuffer[x][y].unit < unitFirstEmpty) * MAX_UNITS) ) //If this newly opened index is earlier than the last known index, change it accordingly.
+	unitFirstEmpty = levelBuffer[x][y].unit;
+	levelBuffer[x][y].unit = 0xFF; //Mark this grid buffer square as no unit.
+
+}
+
+void removeUnitByIndex(unsigned char unit) {
+	if(unit > MAX_UNITS)
+		ERROR("rubi");
+
+	unitList[unit].isUnit = FALSE;
+	unitFirstEmpty = unit;
+	levelBuffer[unitList[unit].xPos][unitList[unit].yPos].unit = 0xFF;
 }
 
 unsigned char getNextAttackableUnitIndex(unsigned char last, char dir) {
@@ -1208,14 +1285,18 @@ unsigned char getNextAttackableUnitIndex(unsigned char last, char dir) {
 		if(i < 0)
 			i = MAX_UNITS-1;
 
-		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == player && MANH(unitList[i].xPos, unitList[i].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range) {
-			// if the unit belongs to the other player and is inside our attack range
-			return i;
+		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == player) {
+			if(range == 1 && ABS(unitList[i].xPos - unitList[attackingUnit].xPos) == 1 && ABS(unitList[i].yPos - unitList[attackingUnit].yPos) == 1)
+				return i;
+			else if(MANH(unitList[i].xPos, unitList[i].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range)
+				return i;
 		}
 	}
-	if(unitList[last].isUnit && GETPLAY(unitList[last].info) == player && MANH(unitList[last].xPos, unitList[last].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range) {
-		// if the unit belongs to the other player and is inside our attack range
-		return last;
+	if(unitList[last].isUnit && GETPLAY(unitList[last].info) == player) {
+		if(range == 1 && ABS(unitList[last].xPos - unitList[attackingUnit].xPos) == 1 && ABS(unitList[last].yPos - unitList[attackingUnit].yPos) == 1)
+			return last;
+		else if(MANH(unitList[last].xPos, unitList[last].yPos, unitList[attackingUnit].xPos, unitList[attackingUnit].yPos) <= range)
+			return last;
 	}
 
 	return 0xFF;
@@ -1765,7 +1846,7 @@ void WaitVsync_(char count) {
 
 
 
-		if(blinkMode) {
+		if(controlState != end_turn && blinkMode) {
 			if(blinkCounter >= 30) {
 				// toggle blink
 				blinkState = !blinkState;
