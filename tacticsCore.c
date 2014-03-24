@@ -16,7 +16,8 @@
 /* structs */
 struct GridBufferSquare {
     unsigned char unit; // index to Unit array; 0xff for no unit
-    unsigned char info; // terrain and player bitfield
+    unsigned char info; // terrain and player bitfield, also hasproduced
+    // pp.xx.a.ttt pp=player, a=has produced, ttt=terrain
 };
 struct Unit {
     char isUnit;
@@ -61,6 +62,12 @@ struct Movement {
 #define TERRAIN_MASK 0b00000111
 #define UNIT_MASK	 0b00111000
 #define OWNER_MASK	 0b11000000
+
+// produced
+#define HASPROD_MASK 0b00001000
+
+#define HASPROD(x) ((x)&HASPROD_MASK)
+#define SETHASPROD(x, y, v) levelBuffer[x][y].info = (levelBuffer[x][y].info&0xF7)|((v)<<3)
 
 //unit stats masks
 #define HASMOVED_MASK 0b00000001
@@ -133,6 +140,7 @@ struct Movement {
 #define INTERFACE_ARROW_BOT 52
 #define INTERFACE_GLIGHT 55
 #define INTERFACE_RLIGHT 54
+#define INTERFACE_DOLLAR 56
 
 //sprite indices
 #define SPRITE_CURSOR 0
@@ -164,6 +172,8 @@ char cursorAlt = FALSE;
 int curInput;
 int prevInput;
 unsigned char activePlayer;
+
+unsigned char credits[] = {0, 0};
 
 const char* currentLevel;
 
@@ -282,37 +292,11 @@ void main() {
 	FadeIn(5, true);
 
 	activePlayer = PL1;
+	credits[0] = 10;
+	credits[1] = 10;
 
 	waitGameInput();
 
-	while(1) {
-		int cur = ReadJoypad(0);
-
-		if(cur&BTN_LEFT)
-			moveCamera(LOAD_LEFT);
-		if(cur&BTN_RIGHT)
-			moveCamera(LOAD_RIGHT);
-
-
-		WaitVsync(1);
-	}
-
-
-	char ttt = FALSE;
-	while(1) {
-		WaitVsync(20);
-		mapCursorSprite(ttt);
-		ttt = !ttt;
-
-	}
-
-
-
-
-
-
-	while(1)
-		WaitVsync(1);
 	return;
 }
 
@@ -375,14 +359,7 @@ void waitGameInput() {
 					moveCursor(DIR_DOWN);
 				}
 				if(curInput&BTN_Y && !(prevInput&BTN_Y)) {
-					for(char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
-						//TODO: make this only jump to not moved or attacked units
-						if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
-							moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
-							lastJumpedUnit = i;
-							break;
-						}
-					}
+					jumpToNextUnit();
 				}
 				if(curInput&BTN_SELECT && !(prevInput&BTN_SELECT)) {
 					// open end turn menu
@@ -564,7 +541,7 @@ void waitGameInput() {
 
 				if(curInput&BTN_A && !(prevInput&BTN_A)) {
 					attackUnit();
-					//SETHASATTACKED(attackingUnit, TRUE);
+					SETHASATTACKED(attackingUnit, TRUE);
 					moveCursorInstant(unitList[attackingUnit].xPos, unitList[attackingUnit].yPos);
 					controlState = scrolling;
 				}
@@ -586,6 +563,8 @@ void waitGameInput() {
 				if(curInput&BTN_A && !(prevInput&BTN_A)) {
 					if(selectionVar == 0) { // end turn
 						endTurn();
+						jumpToNextUnit();
+						controlState = scrolling;
 						//?
 					}
 					else{
@@ -610,17 +589,52 @@ void waitGameInput() {
 }
 
 void endTurn() {
+	unsigned char i, x, y, terr;
 	setBlinkMode(FALSE);
 	drawLevel(LOAD_ALL);
 	activePlayer = activePlayer == PL1 ? PL2 : PL1;
 
-	// reset markers on units
 
+	for(i = 0; i < MAX_UNITS; i++) {
+		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
+			// reset markers on units
+			SETHASMOVED(i, FALSE);
+			SETHASATTACKED(i, FALSE);
 
-	// heal units on bases&cities
+			x = unitList[i].xPos;
+			y = unitList[i].yPos;
+			terr = GETTERR(levelBuffer[x][y].info);
 
-
+			// heal units on bases&cities
+			if(GETPLAY(levelBuffer[x][y].info) == activePlayer) {
+				if(terr == CT || terr == BS) {
+					unitList[i].hp += 20;
+					if(unitList[i].hp > 100)
+						unitList[i].hp = 100;
+				}
+			}
+			// convert bases/cities
+			else {
+				if(terr == CT || terr == BS) {
+					levelBuffer[x][y].info = terr|activePlayer;
+				}
+			}
+		}
+	}
 	// money 'n shit
+	// 4 per owned, 4 by default
+	credits[activePlayer == PL1 ? 0 : 1] += 4;
+	for(x=0; x < levelWidth; x++) {
+		for(y=0; y < levelHeight; y++) {
+			terr = GETTERR(levelBuffer[x][y].info);
+			if(GETPLAY(levelBuffer[x][y].info) == activePlayer && (terr == CT || terr == BS)) {
+				SETHASPROD(x, y, FALSE);
+				credits[activePlayer == PL1 ? 0 : 1] += 4;
+			}
+		}
+	}
+	if(credits[activePlayer == PL1 ? 0 : 1] > 200)
+		credits[activePlayer == PL1 ? 0 : 1] = 200;
 
 }
 
@@ -630,6 +644,15 @@ void displayUnitMenu()
 	Print(8,5,PSTR("two"));
 	Print(9,4,PSTR("three"));
 	Print(9,5,PSTR("four"));
+}
+
+void drawScreenData() {
+	PrintByte(13, OVR3, cursorX, 0);
+	PrintByte(16, OVR3, cursorY, 0);
+	PrintByte(13, OVR4, cameraX, 0);
+	PrintByte(16, OVR4, vramX, 0);
+
+
 }
 
 void loadLevel(const char* level) {
@@ -683,14 +706,16 @@ void drawLevel(char dir) {
 			vramX = 2;
 			Screen.scrollX = 16;
 		}
-		for(y = 0; y < levelHeight; y++) {
-			if(cameraX+MAX_VIS_WIDTH == levelWidth)
-				bound = cameraX+MAX_VIS_WIDTH;
-			else
-				bound = cameraX+MAX_VIS_WIDTH+1;
-
-			for(x = 0; x < levelWidth && x+cameraX < bound; x++) {
-				DrawMap2(vramX+x*2, y*2, getTileMap(x+cameraX, y));
+		if(cameraX+MAX_VIS_WIDTH == levelWidth)
+			bound = cameraX+MAX_VIS_WIDTH;
+		else
+			bound = cameraX+MAX_VIS_WIDTH+1;
+		for(y = 0; y < LEVEL_HEIGHT; y++) {
+			for(x = 0; x < MAX_VIS_WIDTH; x++) {
+				if(y < levelHeight && x < levelWidth && x+cameraX < bound)
+					DrawMap2(vramX+x*2, y*2, getTileMap(x+cameraX, y));
+				else
+					DrawMap2(vramX+x*2, y*2, map_placeholder);
 			}
 		}
 		break;
@@ -772,6 +797,19 @@ void drawOverlay() {
 		}
 	}
 
+	if(activePlayer == PL1) {
+		Print(12, OVR1, PSTR("P1's turn"));
+		PrintByte(15, OVR2, credits[0], TRUE);
+	}
+	else{
+		Print(12, OVR1, PSTR("P2's turn"));
+		PrintByte(15, OVR2, credits[1], TRUE);
+	}
+	SetTile(12, OVR2, INTERFACE_DOLLAR);
+
+
+	drawScreenData();
+
 	// are we in unit action mode? draw the action menu (with selection arrow)
 	if(controlState == unit_menu) {
 		SetTile(27-1, OVR2, INTERFACE_TR);
@@ -847,6 +885,17 @@ void drawTwoSelMenu(const char* prompt, const char* sel1, const char* sel2) {
 
 }
 
+
+void jumpToNextUnit() {
+	for(unsigned char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
+		//TODO: make this only jump to not moved or attacked units
+		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer && !(HASMOVED(unitList[i].other) && HASATTACKED(unitList[i].other))) {
+			moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
+			lastJumpedUnit = i;
+			break;
+		}
+	}
+}
 
 char moveCamera(char dir) {
 	switch(dir) {
@@ -981,6 +1030,11 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 		normalizedCameraX = 0;
 	if(normalizedCameraX > levelWidth-MAX_VIS_WIDTH)
 		normalizedCameraX = levelWidth-MAX_VIS_WIDTH;
+	if(levelWidth < MAX_VIS_WIDTH)
+		normalizedCameraX = 0;
+
+	PrintByte(19, OVR4, normalizedCameraX, 0);
+	WaitVsync_(60);
 
 	moveCameraInstant(normalizedCameraX);
 
@@ -994,16 +1048,16 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 }
 
 void attackUnit() {
-	MoveSprite(0, 0xE0, 0, 2, 2);
+	MoveSprite(0, OFF_SCREEN, 0, 2, 2);
 //	PrintHexByte(11, OVR2, sprites[SPRITE_POS_EXPL1].y);
 //	while(1);
 	sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION;
-	sprites[SPRITE_POS_EXPL1].x = 0xE0;
+	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
 	sprites[SPRITE_POS_EXPL1].y = 0;
 
 	sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION;
 	sprites[SPRITE_POS_EXPL2].flags = SPRITE_FLIP_X;
-	sprites[SPRITE_POS_EXPL2].x = 0xE0;
+	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
 	sprites[SPRITE_POS_EXPL2].y = 0;
 
 	char cycles = 0;
@@ -1032,9 +1086,9 @@ void attackUnit() {
 	}
 
 	// hide sprites
-	sprites[SPRITE_POS_EXPL1].x = 0xE0;
+	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
 	sprites[SPRITE_POS_EXPL1].y = 0;
-	sprites[SPRITE_POS_EXPL2].x = 0xE0;
+	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
 	sprites[SPRITE_POS_EXPL2].y = 0;
 
 	// animate hp bar
@@ -1057,6 +1111,8 @@ void attackUnit() {
 		cycles += 6;
 	}
 
+	WaitVsync_(60);
+
 	if(unitList[attackedUnit].hp <= 0) {
 		// less than just to be sure
 		removeUnitByIndex(attackedUnit);
@@ -1064,7 +1120,7 @@ void attackUnit() {
 		drawOverlay();
 	}
 
-	WaitVsync_(60);
+
 
 }
 
@@ -1272,7 +1328,7 @@ unsigned char getNextAttackableUnitIndex(unsigned char last, char dir) {
 	char i = last+dir;
 	char count = 0;
 	char range = getAttackRange(unitList[attackingUnit].info);
-	char player = activePlayer == PL1 ? PL2 : PL1; // reverse the player
+	unsigned char player = activePlayer == PL1 ? PL2 : PL1; // reverse the player
 	if(last == -1) {
 		i = 0;
 		last = MAX_UNITS-1;
