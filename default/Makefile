@@ -1,6 +1,21 @@
 ###############################################################################
-# Makefile for the project SpriteDemo
+# Makefile for the project UzeboxTactics
 ###############################################################################
+
+## Linux/Windows detection
+
+ifdef SystemRoot
+	RM = del /Q
+	MKDIR = mkdir dep
+	FixPath = $(subst /,\,$1)
+else
+	ifeq ($(shell uname), Linux)
+	RM = rm -rf
+	MKDIR = $(shell mkdir dep 2>/dev/null)
+	FixPath = $1
+	endif
+endif
+
 
 ## General Flags
 PROJECT = UzeboxTactics
@@ -8,12 +23,14 @@ GAME = UzeboxTactics
 MCU = atmega644
 TARGET = $(GAME).elf
 CC = avr-gcc
-INFO=../gameinfo.properties
+INFO = ../gameinfo.properties
+
+UZEBIN_DIR  = ../bin
 
 GCONVERT = gconvert
 
 ## Kernel settings
-KERNEL_DIR = ../../kernel/kernel
+KERNEL_DIR = ../kernel
 KERNEL_OPTIONS  = -DVIDEO_MODE=3 -DINTRO_LOGO=1 -DSCROLLING=1 -DSOUND_MIXER=1
 KERNEL_OPTIONS += -DMAX_SPRITES=8 -DRAM_TILES_COUNT=16 -DSCREEN_TILES_V=26 -DFIRST_RENDER_LINE=28 
 KERNEL_OPTIONS += -DVRAM_TILES_V=32
@@ -83,7 +100,7 @@ uzeboxVideoEngine.o: $(KERNEL_DIR)/uzeboxVideoEngine.c
 
 ## Compile game sources
 tacticsCore.o: ../tacticsCore.c
-	$(CC) $(INCLUDES) $(CFLAGS) -c  $<
+	$(CC) $(INCLUDES) $(CFLAGS) -Wall -Wextra -Werror -c  $<
 
 ##Link
 $(TARGET): $(OBJECTS)
@@ -99,9 +116,10 @@ $(TARGET): $(OBJECTS)
 	avr-objdump -h -S $< > $@
 
 %.uze: $(TARGET)
-	-$(UZEBIN_DIR)packrom $(GAME).hex $@ $(INFO)
+	-$(UZEBIN_DIR)/packrom $(GAME).hex $@ $(INFO)
 
 UNAME := $(shell sh -c 'uname -s 2>/dev/null || echo not')
+
 AVRSIZEFLAGS := -A ${TARGET}
 ifneq (,$(findstring MINGW,$(UNAME)))
 AVRSIZEFLAGS := -C --mcu=${MCU} ${TARGET}
@@ -114,9 +132,9 @@ size: ${TARGET}
 ## Clean target
 .PHONY: clean
 clean:
-	-rm -rf $(OBJECTS) $(GAME).* dep/* *.uze
+	$(RM) $(call FixPath, $(OBJECTS) $(GAME).* dep/* *.uze)
 
 
 ## Other dependencies
--include $(shell mkdir dep 2>/dev/null) $(wildcard dep/*)
+-include $(wildcard dep/*)
 

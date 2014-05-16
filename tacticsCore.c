@@ -4,7 +4,8 @@
 #include <math.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
-#include <uzebox.h>
+//#include <uzebox.h>
+#include "kernel/uzebox.h"
 
 
 /* data includes */
@@ -33,6 +34,10 @@ struct Movement {
 };
 
 /* defines */
+#ifndef OFF_SCREEN 
+#define OFF_SCREEN 28*8 
+#endif
+
 #define LEVEL_HEIGHT 11
 #define MAX_UNITS 40
 #define MAX_PROPERTIES 20
