@@ -95,6 +95,7 @@ struct Movement {
 #define NO_TERRAIN 0xFF //no terrain (when would there ever be no terrain?)
 
 #define GETTERR(x) ((x)&TERRAIN_MASK)
+#define INDEXTERR(x) (x)
 
 // unit types
 #define UN1 0x08
@@ -105,6 +106,7 @@ struct Movement {
 #define NO_UNIT 0xFF
 
 #define GETUNIT(x) ((x)&UNIT_MASK)
+#define INDEXUNIT(x) ((x) >> 3)
 
 // players
 #define PL1	0x80
@@ -112,6 +114,7 @@ struct Movement {
 #define NEU	0x00
 
 #define GETPLAY(x) ((x)&OWNER_MASK)
+#define INDEXPLAY(x) (((x) >> 6))
 
 // map load directions
 #define LOAD_ALL	0x01
@@ -1117,8 +1120,8 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 	if(levelWidth < MAX_VIS_WIDTH)
 		normalizedCameraX = 0;
 
-	PrintByte(19, OVR4, normalizedCameraX, 0);
-	WaitVsync_(60);
+	//PrintByte(19, OVR4, normalizedCameraX, 0);
+	//WaitVsync_(60);
 
 	moveCameraInstant(normalizedCameraX);
 
@@ -1591,8 +1594,23 @@ void mapCursorSprite(char alt) {
 	sprites[3].flags = SPRITE_FLIP_X;
 }
 
+/*const char* _movingSpriteMap[] PROGMEM = {
+	0,0,0,0,0,
+	sprite_unit1_red, sprite_unit2_red, sprite_unit3_red, sprite_unit4_red, sprite_unit5_red,
+	sprite_unit1_blu, sprite_unit2_blu, sprite_unit3_blu, sprite_unit4_blu, sprite_unit5_blu,
+};*/
+
 void mapMovingUnitSprite() {
 	const char* map;
+
+	// TODO: this doesn't work and I don't know why.
+	/*uint8_t u = INDEXUNIT(GETUNIT(unitList[movingUnit].info));
+	uint8_t pl = INDEXPLAY(GETPLAY(unitList[movingUnit].info));
+
+	map = (const char*)(
+			pgm_read_word(&_movingSpriteMap[pl*2+u])
+	);*/
+
 	switch(GETUNIT(unitList[movingUnit].info)|GETPLAY(unitList[movingUnit].info))  {
 	case PL1|UN1:
 		map = sprite_unit1_red;
@@ -1737,10 +1755,25 @@ char getNeededMovePoints(const char unit, const char terrain) {
 	}
 }
 
+const char _damage[] PROGMEM = {
+	25, 15, 15, 25, 35,
+	25, 35, 25, 15, 15,
+	15, 35, 25, 25, 15,
+	35, 25, 25, 15, 35,
+	15, 35, 35, 15, 15
+};
+
 char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
 	char baseDamage = 0;
 
+	// src index and dst index
+	// shifts the unit number so it can be used as an index
+	uint8_t src = INDEXUNIT(GETUNIT(srcUnit->info));
+	uint8_t dst = INDEXUNIT(GETUNIT(dstUnit->info));
 
+	baseDamage = pgm_read_byte(&_damage[src*5+dst]);
+
+/* old lookup routine; is 200 bytes more!
 	// get base damage (unit -> unit)
 	switch(GETUNIT(srcUnit->info)) {
 	case UN1:
@@ -1816,7 +1849,7 @@ char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
 			break;
 		}
 		break;
-	}
+	}*/
 
 	// get random boost (0-10 extra)
 	baseDamage += getRandomNumberLimit(10);
@@ -1845,7 +1878,16 @@ char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
 	return baseDamage;
 }
 
+const char _range[] PROGMEM = {
+	1, 1, 3, 1, 2
+};
+
 char getAttackRange(const char unit) {
+	uint8_t u = INDEXUNIT(GETUNIT(unit));
+	if(u >= 5)
+		ERROR("inv. u ar");
+	return pgm_read_byte(&_range[INDEXUNIT(GETUNIT(unit))]);
+	/*
 	switch(GETUNIT(unit)) {
 	case UN1:
 	case UN2:
@@ -1858,7 +1900,7 @@ char getAttackRange(const char unit) {
 	default:
 		ERROR("inv. u ar");
 	}
-	return 1;
+	return 1;*/
 }
 
 char getRandomNumberLimit(char max) {
