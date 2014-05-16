@@ -12,7 +12,9 @@ Compilation Instructions for Windows
 
 * Install GNU Make for Windows, add C:\Program Files (x86)\GnuWin32\bin\ to Path.
 
-* Run Make in the 'default' directory.
+* Navigate to the "default" directory.
+
+* Run "make all" to build, "make clean" to clean, and "make emu" to run emulator after building.
 
 Getting Cmder Working With Make
 -------------------------------
