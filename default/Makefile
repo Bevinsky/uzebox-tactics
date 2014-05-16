@@ -128,6 +128,9 @@ endif
 size: ${TARGET}
 	@echo
 	@avr-size ${AVRSIZEFLAGS}
+	
+emu: 
+	$(UZEBIN_DIR)/uzem.exe $(GAME).hex
 
 ## Clean target
 .PHONY: clean
