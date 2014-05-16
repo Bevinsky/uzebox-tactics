@@ -193,13 +193,13 @@ struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 unsigned char unitFirstEmpty = 0;
 unsigned char unitListStart = 0;
 unsigned char unitListEnd = 0;
-char lastJumpedUnit = -1;
+signed char lastJumpedUnit = -1;
 
 struct Unit unitList[MAX_UNITS]; //is this enough?
 
 struct Movement movementBuffer[10]; // ought to be enough
-char movementCount = 0;
-char movementPoints = 0;
+uint8_t movementCount = 0;
+uint8_t  movementPoints = 0;
 unsigned char movingUnit = 0;
 unsigned char arrowX = 0, arrowY = 0;
 
@@ -236,7 +236,7 @@ char getAttackRange(const char unit);
 char getDamage(struct Unit* srcUnit, struct Unit* dstUnit);
 char getRandomNumber(); // ; rand
 char getRandomNumberLimit(char); // max; rand
-unsigned char getNextAttackableUnitIndex(unsigned char last, char dir);
+unsigned char getNextAttackableUnitIndex(signed char last, char dir);
 void saveEeprom();
 
 void WaitVsync_(char);
@@ -286,7 +286,7 @@ const char shortlevel[] PROGMEM =
 };
 
 /* main function */
-void main() {
+int main() {
 	initialize();
 	loadLevel(testlevel);
 	FadeOut(0, true);
@@ -302,7 +302,7 @@ void main() {
 
 	waitGameInput();
 
-	return;
+	return 0;
 }
 
 
@@ -321,10 +321,167 @@ void initialize() {
 	}
 }
 
+void jumpToNextUnit() {
+	for(unsigned char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
+		//TODO: make this only jump to not moved or attacked units
+		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer && !(HASMOVED(unitList[i].other) && HASATTACKED(unitList[i].other))) {
+			moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
+			lastJumpedUnit = i;
+			break;
+		}
+	}
+}
+void drawTwoSelMenu(const char* prompt, const char* sel1, const char* sel2) {
+
+	Fill((vramX+5)%0x1F,	 5, 12, 5, INTERFACE_MID);
+	SetTile((vramX+5)%0x1F,	 5, INTERFACE_TL);
+	Fill((vramX+5)%0x1F, 6, 1, 3, INTERFACE_LEFT);
+	SetTile((vramX+5)%0x1F, 9, INTERFACE_BL);
+	Fill((vramX+5+1)%0x1F, 9, 10, 1, INTERFACE_BOT);
+	SetTile((vramX+5+11)%0x1F, 9, INTERFACE_BR);
+	Fill((vramX+5+11)%0x1F, 6, 1, 3, INTERFACE_RIGHT);
+	SetTile((vramX+5+11)%0x1F, 5, INTERFACE_TR);
+	Fill((vramX+5+1)%0x1F, 5, 10, 1, INTERFACE_TOP);
+
+	Print((vramX+5+1)%0x1F, 6, prompt);
+
+	Print((vramX+5+4)%0x1F, 7, sel1);
+	Print((vramX+5+4)%0x1F, 8, sel2);
+
+	SetTile((vramX+5+3)%0x1F, 7+selectionVar, INTERFACE_ARROW);
+
+}
+
+void attackUnit() {
+	MoveSprite(0, OFF_SCREEN, 0, 2, 2);
+//	PrintHexByte(11, OVR2, sprites[SPRITE_POS_EXPL1].y);
+//	while(1);
+	sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION;
+	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
+	sprites[SPRITE_POS_EXPL1].y = 0;
+
+	sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION;
+	sprites[SPRITE_POS_EXPL2].flags = SPRITE_FLIP_X;
+	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
+	sprites[SPRITE_POS_EXPL2].y = 0;
+
+	char cycles = 0;
+	char ex1_start = (getRandomNumberLimit(4) + 1) * 3; // random half-cycle between 1 and 5
+	char ex2_start = ex1_start + (getRandomNumberLimit(7) + 3) * 3;
+	char max_cycles = ex2_start + 20 * 3;
+
+	while(cycles < max_cycles) {
+		if(cycles == ex1_start) {
+			sprites[SPRITE_POS_EXPL1].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10);
+			sprites[SPRITE_POS_EXPL1].y = cursorY*16 + getRandomNumberLimit(2) + 1;
+		}
+		if(cycles == ex2_start) {
+			sprites[SPRITE_POS_EXPL2].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10) + 1;
+			sprites[SPRITE_POS_EXPL2].y = cursorY*16 + getRandomNumberLimit(3) + 8;
+		}
+		if(cycles > ex1_start && cycles < ex1_start+60) {
+			sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION+(cycles-ex1_start)/6;
+		}
+		if(cycles > ex2_start && cycles < ex2_start+60) {
+			sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION+(cycles-ex2_start)/6;
+		}
+
+		WaitVsync_(3);
+		cycles += 3;
+	}
+
+	// hide sprites
+	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
+	sprites[SPRITE_POS_EXPL1].y = 0;
+	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
+	sprites[SPRITE_POS_EXPL2].y = 0;
+
+	// animate hp bar
+
+	cycles = 0;
+
+	char damage = getDamage(&unitList[attackingUnit], &unitList[attackedUnit]);
+
+
+	while(1) {
+		unitList[attackedUnit].hp -= 1;
+		damage--;
+
+		drawOverlay();
+
+		if(damage == 0 || unitList[attackedUnit].hp == 0) {
+			break;
+		}
+		WaitVsync_(6);
+		cycles += 6;
+	}
+
+	WaitVsync_(60);
+
+	if(unitList[attackedUnit].hp <= 0) {
+		// less than just to be sure
+		removeUnitByIndex(attackedUnit);
+		drawLevel(LOAD_ALL);
+		drawOverlay();
+	}
+}
+
+
+void endTurn() {
+	unsigned char i, x, y, terr;
+	setBlinkMode(FALSE);
+	drawLevel(LOAD_ALL);
+	activePlayer = activePlayer == PL1 ? PL2 : PL1;
+
+
+	for(i = 0; i < MAX_UNITS; i++) {
+		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
+			// reset markers on units
+			SETHASMOVED(i, FALSE);
+			SETHASATTACKED(i, FALSE);
+
+			x = unitList[i].xPos;
+			y = unitList[i].yPos;
+			terr = GETTERR(levelBuffer[x][y].info);
+
+			// heal units on bases&cities
+			if(GETPLAY(levelBuffer[x][y].info) == activePlayer) {
+				if(terr == CT || terr == BS) {
+					unitList[i].hp += 20;
+					if(unitList[i].hp > 100)
+						unitList[i].hp = 100;
+				}
+			}
+			// convert bases/cities
+			else {
+				if(terr == CT || terr == BS) {
+					levelBuffer[x][y].info = terr|activePlayer;
+				}
+			}
+		}
+	}
+	// money 'n shit
+	// 4 per owned, 4 by default
+	credits[activePlayer == PL1 ? 0 : 1] += 4;
+	for(x=0; x < levelWidth; x++) {
+		for(y=0; y < levelHeight; y++) {
+			terr = GETTERR(levelBuffer[x][y].info);
+			if(GETPLAY(levelBuffer[x][y].info) == activePlayer && (terr == CT || terr == BS)) {
+				SETHASPROD(x, y, FALSE);
+				credits[activePlayer == PL1 ? 0 : 1] += 4;
+			}
+		}
+	}
+	if(credits[activePlayer == PL1 ? 0 : 1] > 200)
+		credits[activePlayer == PL1 ? 0 : 1] = 200;
+
+}
+
+
 void waitGameInput() {
 	curInput = prevInput = ReadJoypad(JPPLAY(activePlayer));
-	char asd = 0;
-	char tmpUnit = 0;
+	//char asd = 0; //unused 
+	//char tmpUnit = 0; //unused
 	while(1) {
 		curInput = ReadJoypad(JPPLAY(activePlayer));
 
@@ -586,61 +743,15 @@ void waitGameInput() {
 			case menu:
 				
 				break;
+				
+			case unit_moving:
+			
+				break;
 		}
 
 		prevInput = curInput;
 		WaitVsync_(1);
 	}
-}
-
-void endTurn() {
-	unsigned char i, x, y, terr;
-	setBlinkMode(FALSE);
-	drawLevel(LOAD_ALL);
-	activePlayer = activePlayer == PL1 ? PL2 : PL1;
-
-
-	for(i = 0; i < MAX_UNITS; i++) {
-		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
-			// reset markers on units
-			SETHASMOVED(i, FALSE);
-			SETHASATTACKED(i, FALSE);
-
-			x = unitList[i].xPos;
-			y = unitList[i].yPos;
-			terr = GETTERR(levelBuffer[x][y].info);
-
-			// heal units on bases&cities
-			if(GETPLAY(levelBuffer[x][y].info) == activePlayer) {
-				if(terr == CT || terr == BS) {
-					unitList[i].hp += 20;
-					if(unitList[i].hp > 100)
-						unitList[i].hp = 100;
-				}
-			}
-			// convert bases/cities
-			else {
-				if(terr == CT || terr == BS) {
-					levelBuffer[x][y].info = terr|activePlayer;
-				}
-			}
-		}
-	}
-	// money 'n shit
-	// 4 per owned, 4 by default
-	credits[activePlayer == PL1 ? 0 : 1] += 4;
-	for(x=0; x < levelWidth; x++) {
-		for(y=0; y < levelHeight; y++) {
-			terr = GETTERR(levelBuffer[x][y].info);
-			if(GETPLAY(levelBuffer[x][y].info) == activePlayer && (terr == CT || terr == BS)) {
-				SETHASPROD(x, y, FALSE);
-				credits[activePlayer == PL1 ? 0 : 1] += 4;
-			}
-		}
-	}
-	if(credits[activePlayer == PL1 ? 0 : 1] > 200)
-		credits[activePlayer == PL1 ? 0 : 1] = 200;
-
 }
 
 void displayUnitMenu()
@@ -869,39 +980,6 @@ void drawArrow() {
 
 }
 
-void drawTwoSelMenu(const char* prompt, const char* sel1, const char* sel2) {
-
-	Fill((vramX+5)%0x1F,	 5, 12, 5, INTERFACE_MID);
-	SetTile((vramX+5)%0x1F,	 5, INTERFACE_TL);
-	Fill((vramX+5)%0x1F, 6, 1, 3, INTERFACE_LEFT);
-	SetTile((vramX+5)%0x1F, 9, INTERFACE_BL);
-	Fill((vramX+5+1)%0x1F, 9, 10, 1, INTERFACE_BOT);
-	SetTile((vramX+5+11)%0x1F, 9, INTERFACE_BR);
-	Fill((vramX+5+11)%0x1F, 6, 1, 3, INTERFACE_RIGHT);
-	SetTile((vramX+5+11)%0x1F, 5, INTERFACE_TR);
-	Fill((vramX+5+1)%0x1F, 5, 10, 1, INTERFACE_TOP);
-
-	Print((vramX+5+1)%0x1F, 6, prompt);
-
-	Print((vramX+5+4)%0x1F, 7, sel1);
-	Print((vramX+5+4)%0x1F, 8, sel2);
-
-	SetTile((vramX+5+3)%0x1F, 7+selectionVar, INTERFACE_ARROW);
-
-}
-
-
-void jumpToNextUnit() {
-	for(unsigned char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
-		//TODO: make this only jump to not moved or attacked units
-		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer && !(HASMOVED(unitList[i].other) && HASATTACKED(unitList[i].other))) {
-			moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
-			lastJumpedUnit = i;
-			break;
-		}
-	}
-}
-
 char moveCamera(char dir) {
 	switch(dir) {
 	case LOAD_LEFT:
@@ -949,6 +1027,7 @@ char moveCameraInstant(char x) {
 	//vramX = 0;
 	cameraX = x;
 	drawLevel(LOAD_ALL);
+	return TRUE;
 }
 
 char moveCursor(char direction) {
@@ -1047,91 +1126,16 @@ char moveCursorInstant(unsigned char x, unsigned char y) {
 	cursorY = y;
 
 	MoveSprite(0, (cursorX-cameraX)*16, cursorY*16, 2, 2);
-
-
-
+	
+	return TRUE;
 }
 
-void attackUnit() {
-	MoveSprite(0, OFF_SCREEN, 0, 2, 2);
-//	PrintHexByte(11, OVR2, sprites[SPRITE_POS_EXPL1].y);
-//	while(1);
-	sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION;
-	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
-	sprites[SPRITE_POS_EXPL1].y = 0;
-
-	sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION;
-	sprites[SPRITE_POS_EXPL2].flags = SPRITE_FLIP_X;
-	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
-	sprites[SPRITE_POS_EXPL2].y = 0;
-
-	char cycles = 0;
-	char ex1_start = (getRandomNumberLimit(4) + 1) * 3; // random half-cycle between 1 and 5
-	char ex2_start = ex1_start + (getRandomNumberLimit(7) + 3) * 3;
-	char max_cycles = ex2_start + 20 * 3;
-
-	while(cycles < max_cycles) {
-		if(cycles == ex1_start) {
-			sprites[SPRITE_POS_EXPL1].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10);
-			sprites[SPRITE_POS_EXPL1].y = cursorY*16 + getRandomNumberLimit(2) + 1;
-		}
-		if(cycles == ex2_start) {
-			sprites[SPRITE_POS_EXPL2].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10) + 1;
-			sprites[SPRITE_POS_EXPL2].y = cursorY*16 + getRandomNumberLimit(3) + 8;
-		}
-		if(cycles > ex1_start && cycles < ex1_start+60) {
-			sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION+(cycles-ex1_start)/6;
-		}
-		if(cycles > ex2_start && cycles < ex2_start+60) {
-			sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION+(cycles-ex2_start)/6;
-		}
-
-		WaitVsync_(3);
-		cycles += 3;
-	}
-
-	// hide sprites
-	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
-	sprites[SPRITE_POS_EXPL1].y = 0;
-	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
-	sprites[SPRITE_POS_EXPL2].y = 0;
-
-	// animate hp bar
-
-	cycles = 0;
-
-	char damage = getDamage(&unitList[attackingUnit], &unitList[attackedUnit]);
-
-
-	while(1) {
-		unitList[attackedUnit].hp -= 1;
-		damage--;
-
-		drawOverlay();
-
-		if(damage == 0 || unitList[attackedUnit].hp == 0) {
-			break;
-		}
-		WaitVsync_(6);
-		cycles += 6;
-	}
-
-	WaitVsync_(60);
-
-	if(unitList[attackedUnit].hp <= 0) {
-		// less than just to be sure
-		removeUnitByIndex(attackedUnit);
-		drawLevel(LOAD_ALL);
-		drawOverlay();
-	}
-
-
-
-}
 
 void moveUnit() {
-	char traverseX, traverseY, traverseI;
-	char newX, newY;
+	uint8_t traverseX, traverseY, traverseI;
+	uint8_t newX, newY;
+	newX = 0;
+	newY = 0;
 
 	mapMovingUnitSprite();
 
@@ -1139,22 +1143,25 @@ void moveUnit() {
 	traverseY = unitList[movingUnit].yPos;
 	for(traverseI = 0;traverseI < movementCount; traverseI++) {
 		switch(movementBuffer[traverseI].direction) {
-		case DIR_UP:
-			newX = traverseX;
-			newY = traverseY-1;
-			break;
-		case DIR_DOWN:
-			newX = traverseX;
-			newY = traverseY+1;
-			break;
-		case DIR_LEFT:
-			newX = traverseX-1;
-			newY = traverseY;
-			break;
-		case DIR_RIGHT:
-			newX = traverseX+1;
-			newY = traverseY;
-			break;
+			case DIR_UP:
+				newX = traverseX;
+				newY = traverseY-1;
+				break;
+			case DIR_DOWN:
+				newX = traverseX;
+				newY = traverseY+1;
+				break;
+			case DIR_LEFT:
+				newX = traverseX-1;
+				newY = traverseY;
+				break;
+			case DIR_RIGHT:
+				newX = traverseX+1;
+				newY = traverseY;
+				break;
+			default:
+				newX = traverseX;
+				newY = traverseY;
 		}
 
 		tweenUnitSprite(traverseX, traverseY, newX, newY);
@@ -1329,10 +1336,10 @@ void removeUnitByIndex(unsigned char unit) {
 	levelBuffer[unitList[unit].xPos][unitList[unit].yPos].unit = 0xFF;
 }
 
-unsigned char getNextAttackableUnitIndex(unsigned char last, char dir) {
-	char i = last+dir;
-	char count = 0;
-	char range = getAttackRange(unitList[attackingUnit].info);
+unsigned char getNextAttackableUnitIndex(signed char last, char dir) {
+	int8_t i = last+dir;
+	int8_t count = 0;
+	int8_t range = getAttackRange(unitList[attackingUnit].info);
 	unsigned char player = activePlayer == PL1 ? PL2 : PL1; // reverse the player
 	if(last == -1) {
 		i = 0;
@@ -1731,7 +1738,7 @@ char getNeededMovePoints(const char unit, const char terrain) {
 }
 
 char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
-	char baseDamage;
+	char baseDamage = 0;
 
 
 	// get base damage (unit -> unit)
