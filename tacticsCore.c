@@ -327,6 +327,7 @@ void initialize() {
 void jumpToNextUnit() {
 	for(unsigned char i = lastJumpedUnit+1; i != lastJumpedUnit; i = (i+1)%MAX_UNITS) {
 		//TODO: make this only jump to not moved or attacked units
+		//should this be !(hasmoved || hasattacked)?
 		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer && !(HASMOVED(unitList[i].other) && HASATTACKED(unitList[i].other))) {
 			moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
 			lastJumpedUnit = i;
@@ -359,11 +360,11 @@ void attackUnit() {
 	MoveSprite(0, OFF_SCREEN, 0, 2, 2);
 //	PrintHexByte(11, OVR2, sprites[SPRITE_POS_EXPL1].y);
 //	while(1);
-	sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION;
+	sprites[SPRITE_POS_EXPL1].tileIndex = SPRITE_EXPLOSION; // this doesn't need to be set every call
 	sprites[SPRITE_POS_EXPL1].x = OFF_SCREEN;
 	sprites[SPRITE_POS_EXPL1].y = 0;
 
-	sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION;
+	sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION; // this doesn't need to be set every call
 	sprites[SPRITE_POS_EXPL2].flags = SPRITE_FLIP_X;
 	sprites[SPRITE_POS_EXPL2].x = OFF_SCREEN;
 	sprites[SPRITE_POS_EXPL2].y = 0;
@@ -434,8 +435,7 @@ void endTurn() {
 	unsigned char i, x, y, terr;
 	setBlinkMode(FALSE);
 	drawLevel(LOAD_ALL);
-	activePlayer = activePlayer == PL1 ? PL2 : PL1;
-
+	activePlayer = (activePlayer == PL1) ? PL2 : PL1;
 
 	for(i = 0; i < MAX_UNITS; i++) {
 		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer) {
@@ -448,24 +448,20 @@ void endTurn() {
 			terr = GETTERR(levelBuffer[x][y].info);
 
 			// heal units on bases&cities
-			if(GETPLAY(levelBuffer[x][y].info) == activePlayer) {
-				if(terr == CT || terr == BS) {
-					unitList[i].hp += 20;
-					if(unitList[i].hp > 100)
-						unitList[i].hp = 100;
-				}
+			if(GETPLAY(levelBuffer[x][y].info) == activePlayer && (terr == CT || terr == BS)) {
+				unitList[i].hp += 20;
+				if(unitList[i].hp > 100)
+					unitList[i].hp = 100;
 			}
 			// convert bases/cities
-			else {
-				if(terr == CT || terr == BS) {
-					levelBuffer[x][y].info = terr|activePlayer;
-				}
+			else if(terr == CT || terr == BS) {
+				levelBuffer[x][y].info = terr|activePlayer;
 			}
 		}
 	}
 	// money 'n shit
 	// 4 per owned, 4 by default
-	credits[activePlayer == PL1 ? 0 : 1] += 4;
+	credits[(activePlayer == PL1) ? 0 : 1] += 4;
 	for(x=0; x < levelWidth; x++) {
 		for(y=0; y < levelHeight; y++) {
 			terr = GETTERR(levelBuffer[x][y].info);
@@ -475,8 +471,9 @@ void endTurn() {
 			}
 		}
 	}
+
 	if(credits[activePlayer == PL1 ? 0 : 1] > 200)
-		credits[activePlayer == PL1 ? 0 : 1] = 200;
+		credits[(activePlayer == PL1) ? 0 : 1] = 200;
 
 }
 
@@ -578,15 +575,21 @@ void waitGameInput() {
 				}
 				if(curInput&BTN_UP && !(prevInput&BTN_UP)) {
 					// move selection up
+					selectionVar = 0; //only works because 2 choices, uncomment below if more
+					/*
 					if(selectionVar != 0) {
 						selectionVar--;
 					}
+					*/
 				}
 				if(curInput&BTN_DOWN && !(prevInput&BTN_DOWN)) {
 					// move selection down
+					selectionVar = 1; //only works because 2 choices, uncomment below if more
+					/*
 					if(selectionVar != 1) {
 						selectionVar++;
 					}
+					*/
 				}
 				
 				break;
@@ -985,42 +988,46 @@ void drawArrow() {
 
 char moveCamera(char dir) {
 	switch(dir) {
-	case LOAD_LEFT:
-		if(cameraX == 0) {
-			//nothing happens
-			return FALSE;
-		}
-		drawLevel(dir);
-		//animate the screen movement
-		while(1) {
-			Screen.scrollX--;
-			WaitVsync_(1);
-			if(Screen.scrollX % 16 == 0)
-				break;
-		}
-		cameraX--;
-		vramX = (vramX-2)&0x1F;
-		// TODO: sprite movement (cursors, moving units, etc)
-		// cursors seem to stay in place when screen moves... intredasting
-		break;
-	case LOAD_RIGHT:
-		if(cameraX == levelWidth-MAX_VIS_WIDTH) {
-			return FALSE;
-		}
-		drawLevel(dir);
-		while(1) {
-			Screen.scrollX++;
-			WaitVsync_(1);
-			if(Screen.scrollX % 16 == 0)
-				break;
-		}
-		cameraX++;
-		vramX = (vramX+2)&0x1F;
-		break;
-	case LOAD_ALL:
-	default:
-		ERROR("inv. move");
+		case LOAD_LEFT:
+			if(cameraX == 0) {
+				//nothing happens
+				return FALSE;
+			}
+			drawLevel(dir);
+			//animate the screen movement
+			while(1) {
+				Screen.scrollX--;
+				WaitVsync_(1);
+				if(Screen.scrollX % 16 == 0)
+					break;
+			}
+			cameraX--;
+			vramX = (vramX-2)&0x1F;
+			// TODO: sprite movement (cursors, moving units, etc)
+			// cursors seem to stay in place when screen moves... intredasting
+			break;
+
+		case LOAD_RIGHT:
+			if(cameraX == levelWidth-MAX_VIS_WIDTH) {
+				return FALSE;
+			}
+			drawLevel(dir);
+			while(1) {
+				Screen.scrollX++;
+				WaitVsync_(1);
+				if(Screen.scrollX % 16 == 0)
+					break;
+			}
+			cameraX++;
+			vramX = (vramX+2)&0x1F;
+			break;
+
+		case LOAD_ALL:
+
+		default:
+			ERROR("inv. move");
 	}
+
 	return TRUE;
 }
 
