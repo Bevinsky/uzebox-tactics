@@ -815,44 +815,44 @@ void loadLevel(const char* level) {
 void drawLevel(char dir) {
 	char x, y, bound;
 	switch(dir){
-	case LOAD_ALL:
-		if(cameraX == 0) {
-			vramX = 0;
-			Screen.scrollX = 0;
-		}
-		else if(cameraX == levelWidth-MAX_VIS_WIDTH) {
-			vramX = 4;
-			Screen.scrollX = 32;
-		}
-		else {
-			vramX = 2;
-			Screen.scrollX = 16;
-		}
-		if(cameraX+MAX_VIS_WIDTH == levelWidth)
-			bound = cameraX+MAX_VIS_WIDTH;
-		else
-			bound = cameraX+MAX_VIS_WIDTH+1;
-		for(y = 0; y < LEVEL_HEIGHT; y++) {
-			for(x = 0; x < MAX_VIS_WIDTH; x++) {
-				if(y < levelHeight && x < levelWidth && x+cameraX < bound)
-					DrawMap2(vramX+x*2, y*2, getTileMap(x+cameraX, y));
-				else
-					DrawMap2(vramX+x*2, y*2, map_placeholder);
+		case LOAD_ALL:
+			if(cameraX == 0) {
+				vramX = 0;
+				Screen.scrollX = 0;
 			}
-		}
-		break;
-	case LOAD_LEFT:
-		// assume that we want to load the column that's cameraX-1
-		// load it at vramX-2
-		if(cameraX - 1 < 0) {
-			ERROR("inv. left map load");
-		}
-		for(y = 0; y < levelHeight; y++) {
-			DrawMap2(vramX-2, y*2, getTileMap(cameraX-1, y));
-		}
-		break;
-	case LOAD_RIGHT:
-		// assume that we want to load the column that's cameraX+MAX+1
+			else if(cameraX == levelWidth-MAX_VIS_WIDTH) {
+				vramX = 4;
+				Screen.scrollX = 32;
+			}
+			else {
+				vramX = 2;
+				Screen.scrollX = 16;
+			}
+			if(cameraX+MAX_VIS_WIDTH == levelWidth)
+				bound = cameraX+MAX_VIS_WIDTH;
+			else
+				bound = cameraX+MAX_VIS_WIDTH+1;
+			for(y = 0; y < LEVEL_HEIGHT; y++) {
+				for(x = 0; x < MAX_VIS_WIDTH+1; x++) {
+					if(y < levelHeight && x < levelWidth && x+cameraX < bound)
+						DrawMap2(vramX+x*2, y*2, getTileMap(x+cameraX, y));
+					else
+						DrawMap2(vramX+x*2, y*2, map_placeholder);
+				}
+			}
+			break;
+		case LOAD_LEFT:
+			// assume that we want to load the column that's cameraX-1
+			// load it at vramX-2
+			if(cameraX - 1 < 0) {
+				ERROR("inv. left map load");
+			}
+			for(y = 0; y < levelHeight; y++) {
+				DrawMap2(vramX-2, y*2, getTileMap(cameraX-1, y));
+			}
+			break;
+		case LOAD_RIGHT:
+			// assume that we want to load the column that's cameraX+MAX+1
 		// load it at vramX+MAX*2+2
 		if(cameraX+MAX_VIS_WIDTH+1 > MAX_LEVEL_WIDTH) {
 			ERROR("inv. right map load");
@@ -861,8 +861,8 @@ void drawLevel(char dir) {
 			DrawMap2(vramX+(MAX_VIS_WIDTH+1)*2, y*2, getTileMap(cameraX+MAX_VIS_WIDTH+1, y));
 		}
 		break;
-	default:
-		ERROR("inv. load var");
+		default:
+			ERROR("inv. load var");
 	}
 }
 
