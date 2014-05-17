@@ -1775,8 +1775,8 @@ char getDamage(struct Unit* srcUnit, struct Unit* dstUnit) {
 
 	// src index and dst index
 	// shifts the unit number so it can be used as an index
-	uint8_t src = INDEXUNIT(GETUNIT(srcUnit->info));
-	uint8_t dst = INDEXUNIT(GETUNIT(dstUnit->info));
+	uint8_t src = INDEXUNIT(GETUNIT(srcUnit->info))-1;
+	uint8_t dst = INDEXUNIT(GETUNIT(dstUnit->info))-1;
 
 	baseDamage = pgm_read_byte(&_damage[src*5+dst]);
 
@@ -1890,10 +1890,10 @@ const char _range[] PROGMEM = {
 };
 
 char getAttackRange(const char unit) {
-	uint8_t u = INDEXUNIT(GETUNIT(unit));
+	uint8_t u = INDEXUNIT(GETUNIT(unit))-1;
 	if(u >= 5)
 		ERROR("inv. u ar");
-	return pgm_read_byte(&_range[INDEXUNIT(GETUNIT(unit))]);
+	return pgm_read_byte(&_range[u]);
 	/*
 	switch(GETUNIT(unit)) {
 	case UN1:
