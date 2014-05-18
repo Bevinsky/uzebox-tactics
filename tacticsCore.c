@@ -374,6 +374,8 @@ void attackUnit() {
 	char ex2_start = ex1_start + (getRandomNumberLimit(7) + 3) * 3;
 	char max_cycles = ex2_start + 20 * 3;
 
+	int8_t damage = getDamage(&unitList[attackingUnit], &unitList[attackedUnit]);
+
 	while(cycles < max_cycles) {
 		if(cycles == ex1_start) {
 			sprites[SPRITE_POS_EXPL1].x = (cursorX-cameraX)*16 + getRandomNumberLimit(10);
@@ -390,6 +392,13 @@ void attackUnit() {
 			sprites[SPRITE_POS_EXPL2].tileIndex = SPRITE_EXPLOSION+(cycles-ex2_start)/6;
 		}
 
+		if(damage != 0 && unitList[attackedUnit].hp != 0){
+		    unitList[attackedUnit].hp -= 1;
+		    damage--;
+
+		    drawOverlay();
+		}
+
 		WaitVsync_(3);
 		cycles += 3;
 	}
@@ -404,23 +413,17 @@ void attackUnit() {
 
 	cycles = 0;
 
-	char damage = getDamage(&unitList[attackingUnit], &unitList[attackedUnit]);
-
-
-	while(1) {
+	while(damage != 0 && unitList[attackedUnit].hp != 0) {
 		unitList[attackedUnit].hp -= 1;
 		damage--;
 
 		drawOverlay();
 
-		if(damage == 0 || unitList[attackedUnit].hp == 0) {
-			break;
-		}
-		WaitVsync_(6);
-		cycles += 6;
+		WaitVsync_(3);
+		//cycles += 3;
 	}
 
-	WaitVsync_(60);
+	WaitVsync_(10);
 
 	if(unitList[attackedUnit].hp <= 0) {
 		// less than just to be sure
