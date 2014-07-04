@@ -194,7 +194,6 @@ enum
 struct GridBufferSquare levelBuffer[MAX_LEVEL_WIDTH][LEVEL_HEIGHT];
 
 unsigned char unitFirstEmpty = 0;
-unsigned char unitListStart = 0;
 unsigned char unitListEnd = 0;
 signed char lastJumpedUnit = -1;
 
@@ -329,6 +328,16 @@ void jumpToNextUnit() {
 		//TODO: make this only jump to not moved or attacked units
 		//should this be !(hasmoved || hasattacked)?
 		if(unitList[i].isUnit && GETPLAY(unitList[i].info) == activePlayer && !(HASMOVED(unitList[i].other) && HASATTACKED(unitList[i].other))) {
+			if((unitList[i].xPos < cameraX) || (unitList[i].xPos > (cameraX + MAX_VIS_WIDTH))) {
+				signed char tempX = unitList[i].xPos - MAX_VIS_WIDTH/2;
+				if(tempX < 0) {
+					tempX = 0;
+				}
+				else if(tempX > (levelWidth - MAX_VIS_WIDTH)) {
+					tempX = levelWidth - MAX_VIS_WIDTH;
+				}
+				moveCameraInstant(unitList[i].xPos - MAX_VIS_WIDTH/2);
+			}
 			moveCursorInstant(unitList[i].xPos, unitList[i].yPos);
 			lastJumpedUnit = i;
 			break;
