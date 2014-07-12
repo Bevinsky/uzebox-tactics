@@ -214,6 +214,7 @@ void initialize();
 void loadLevel(const char*); // level
 void drawLevel(char); // direction
 void drawHPBar(unsigned char, unsigned char, char); // x, y, value
+void drawDefenseBar(unsigned char, unsigned char, char); //same as hp bar
 void drawOverlay();
 void drawArrow();
 unsigned char addUnit(unsigned char, unsigned char, char, char); // x, y, player, type; unitIndex
@@ -899,6 +900,7 @@ void redrawUnits() {
 	//PrintByte(3, OVR4, v, 0);
 }
 
+
 void drawOverlay() {
 
 	// draw the basic panel
@@ -913,36 +915,91 @@ void drawOverlay() {
 	// TODO: might need conditions for other overlay types, this is preliminary
 	if(levelBuffer[cursorX][cursorY].unit != 0xFF) {
 		struct Unit* unit = &unitList[levelBuffer[cursorX][cursorY].unit];
-		Print(1, OVR1, getUnitName(unit->info));
-		drawHPBar(1, OVR2, unit->hp);
+		Print(12, OVR1, getUnitName(unit->info));
+		drawHPBar(12, OVR2, unit->hp);
 
 		if(GETPLAY(unit->info) == activePlayer) {
-			Print(1, OVR3, PSTR("MOV"));
-			Print(6, OVR3, PSTR("ATK"));
+			Print(12, OVR3, PSTR("MOV"));
+			Print(18, OVR3, PSTR("ATK"));
 
 			if(HASMOVED(unit->other))
-				SetTile(4, OVR3, INTERFACE_RLIGHT);
+				SetTile(15, OVR3, INTERFACE_RLIGHT);
 			else
-				SetTile(4, OVR3, INTERFACE_GLIGHT);
+				SetTile(15, OVR3, INTERFACE_GLIGHT);
 			if(HASATTACKED(unit->other))
-				SetTile(9, OVR3, INTERFACE_RLIGHT);
+				SetTile(21, OVR3, INTERFACE_RLIGHT);
 			else
-				SetTile(9, OVR3, INTERFACE_GLIGHT);
+				SetTile(21, OVR3, INTERFACE_GLIGHT);
 		}
 	}
 
+
+
 	if(activePlayer == PL1) {
-		Print(12, OVR1, PSTR("P1's turn"));
-		PrintByte(15, OVR2, credits[0], TRUE);
+		Print(26, OVR1, PSTR("P1"));
+		PrintByte(27, OVR2, credits[0], TRUE);
 	}
-	else{
-		Print(12, OVR1, PSTR("P2's turn"));
-		PrintByte(15, OVR2, credits[1], TRUE);
+	else {
+		Print(26, OVR1, PSTR("P2"));
+		PrintByte(27, OVR2, credits[1], TRUE);
 	}
-	SetTile(12, OVR2, INTERFACE_DOLLAR);
 
+	SetTile(23, OVR2, INTERFACE_DOLLAR);
 
-	drawScreenData();
+	const char* map;
+	switch(levelBuffer[cursorX][cursorY].info & TERRAIN_MASK) {
+		case PL:
+			map = map_plain;
+			Print(3, OVR1, PSTR("Plains"));
+			break;
+		case MO:
+			map = map_mountain;
+			Print(3, OVR1, PSTR("Mountains"));
+			break;
+		case FO:
+			map = map_forest;
+			Print(3, OVR1, PSTR("Forest"));
+			break;
+		case CT:
+			Print(3, OVR1, PSTR("City"));
+			switch(levelBuffer[cursorX][cursorY].info & OWNER_MASK) {
+				case PL1:
+					map = map_city_red;
+					break;
+				case PL2:
+					map = map_city_blu;
+					break;
+				case NEU:
+					map = map_city_neu;
+					break;
+				default:
+					map = map_placeholder;
+			}
+			break;
+		case BS:
+			Print(3, OVR1, PSTR("Base"));
+			switch(levelBuffer[cursorX][cursorY].info & OWNER_MASK) {
+				case PL1:
+					map = map_base_red;
+					break;
+				case PL2:
+					map = map_base_blu;
+					break;
+				case NEU:
+					map = map_base_neu;
+					break;
+				default:
+					map = map_placeholder;
+			}
+			break;
+		default:
+			map = map_placeholder;
+		}
+	DrawMap2(1, OVR2, map);
+
+	drawDefenseBar(3, OVR2, 100);
+
+	//drawScreenData();
 
 	// are we in unit action mode? draw the action menu (with selection arrow)
 	if(controlState == unit_menu) {
@@ -957,13 +1014,15 @@ void drawOverlay() {
 		SetTile(27-6, OVR2+selectionVar, selectionVar == 0 ? INTERFACE_ARROW_TOP : INTERFACE_ARROW_BOT); // this looks ugly but sprites don't work in overlay...
 	}
 	if(controlState == unit_movement) {
-		PrintByte(17, OVR2, movementPoints, 0);
+		PrintByte(17, OVR3, movementPoints, 0);
 
 	}
+	/*
 	if(controlState == unit_attack) {
-		PrintByte(17, OVR2, attackedUnit, 0);
+		PrintByte(27, OVR2, attackedUnit, 0);
 
 	}
+	*/
 	//PrintByte(12, OVR3, getRandomNumber(),FALSE);
 }
 
@@ -991,7 +1050,7 @@ void drawArrow() {
 			continue;
 
 		DrawMap2(((traverseX-cameraX)*2 + vramX)&0x1F, traverseY*2, getTileMap(traverseX, traverseY));
-		PrintByte(12, OVR1, movementCount, 0);
+		//PrintByte(12, OVR1, movementCount, 0);
 	}
 
 
@@ -1676,6 +1735,46 @@ void mapMovingUnitSprite() {
 }
 
 void drawHPBar(unsigned char x, unsigned char y, char val) {
+	val = val >> 1;
+	DrawMap2(x, y, hp_bar_base);
+	x += 2;
+	Fill(x, y, 7, 1, INTERFACE_MID);
+	while(val >= 8) {
+		SetTile(x, y, 9);
+		val -= 8;
+		x++;
+	}
+	//i want a fancy indexing thing here but fucking tiles man
+	switch(val) {
+	case 7:
+		SetTile(x,y,10);
+		break;
+	case 6:
+		SetTile(x,y,11);
+		break;
+	case 5:
+		SetTile(x,y,12);
+		break;
+	case 4:
+		SetTile(x,y,13);
+		break;
+	case 3:
+		SetTile(x,y,14);
+		break;
+	case 2:
+		SetTile(x,y,21);
+		break;
+	case 1:
+		SetTile(x,y,22);
+		break;
+	case 0:
+	default:
+		SetTile(x,y,INTERFACE_MID);
+	}
+
+}
+
+void drawDefenseBar(unsigned char x, unsigned char y, char val) {
 	val = val >> 1;
 	DrawMap2(x, y, hp_bar_base);
 	x += 2;
